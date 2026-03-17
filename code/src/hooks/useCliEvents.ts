@@ -37,6 +37,22 @@ export function useCliEvents() {
             break;
           }
 
+          case "move-to-done": {
+            const res = await fetch(`/api/emails/${data.threadId}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "moveToDone" }),
+            });
+            if (res.ok) {
+              const state = useAppStore.getState();
+              useAppStore.setState({
+                threads: state.threads.filter((t) => t.id !== data.threadId),
+                openThread: state.openThread?.id === data.threadId ? null : state.openThread,
+              });
+            }
+            break;
+          }
+
           case "refresh":
             useAppStore.getState().triggerRefresh();
             break;

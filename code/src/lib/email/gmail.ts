@@ -32,9 +32,21 @@ function folderToQuery(folder?: string): string {
     case "sent": return "in:sent";
     case "drafts": return "in:drafts";
     case "archive": return "-in:inbox -in:sent -in:drafts -in:trash -in:spam";
+    case "done": return "label:done";
     case "inbox":
     default: return "in:inbox";
   }
+}
+
+async function getOrCreateLabel(gmail: ReturnType<typeof getGmailClient>, name: string): Promise<string> {
+  const res = await gmail.users.labels.list({ userId: "me" });
+  const existing = res.data.labels?.find((l: any) => l.name.toLowerCase() === name.toLowerCase());
+  if (existing?.id) return existing.id;
+  const created = await gmail.users.labels.create({
+    userId: "me",
+    requestBody: { name, labelListVisibility: "labelShow", messageListVisibility: "show" },
+  });
+  return created.data.id!;
 }
 
 function collectParts(payload: any): any[] {
@@ -247,6 +259,26 @@ export const gmailClient: EmailClient = {
       userId: "me",
       id: threadId,
       requestBody: { removeLabelIds: ["INBOX"] },
+    });
+  },
+
+  async moveToDone(accessToken: string, threadId: string): Promise<void> {
+    const gmail = getGmailClient(accessToken);
+    const labelId = await getOrCreateLabel(gmail, "Done");
+    await gmail.users.threads.modify({
+      userId: "me",
+      id: threadId,
+      requestBody: { addLabelIds: [labelId], removeLabelIds: ["INBOX"] },
+    });
+  },
+
+  async moveToInbox(accessToken: string, threadId: string): Promise<void> {
+    const gmail = getGmailClient(accessToken);
+    const labelId = await getOrCreateLabel(gmail, "Done");
+    await gmail.users.threads.modify({
+      userId: "me",
+      id: threadId,
+      requestBody: { addLabelIds: ["INBOX"], removeLabelIds: [labelId] },
     });
   },
 

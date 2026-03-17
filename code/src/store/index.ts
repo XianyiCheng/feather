@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { EmailThread, ForwardedAttachment } from "@/lib/email/types";
 
-export type Folder = "inbox" | "sent" | "drafts" | "archive";
+export type Folder = "inbox" | "sent" | "drafts" | "archive" | "done";
 export type Theme = "dark" | "light" | "system";
 
 interface AppState {
@@ -74,12 +74,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Folder
   activeFolder: "inbox",
   setActiveFolder: (folder) => {
-    set({ activeFolder: folder, selectedIndex: 0, openThread: null, composeDraft: "", composeSubject: "", composeToEmail: "", composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
+    set({ activeFolder: folder, selectedIndex: -1, openThread: null, composeDraft: "", composeSubject: "", composeToEmail: "", composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
   },
 
   // Thread list
   threads: [],
-  selectedIndex: 0,
+  selectedIndex: -1,
   setThreads: (threads) => set({ threads }),
   selectNext: () => {
     const { selectedIndex, threads } = get();

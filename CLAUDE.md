@@ -4,7 +4,7 @@ This is a browser-based Gmail client running at `http://localhost:3000`. You can
 
 ## Quick Start
 
-Start the dev server: `cd /Users/xianyi/ai_projects/email_helper && npm run dev`
+Start the dev server: `cd /Users/xianyi/ai_projects/email_helper/code && npm run dev`
 
 ## Agent Folders
 
@@ -18,7 +18,7 @@ This project has two agent knowledge folders:
 
 ## Important Rules
 
-1. **At the START of every conversation, read `assistant_agent/profile.md` and `assistant_agent/instructions.md` once.** Do not re-read them for subsequent email tasks in the same session.
+1. **At the START of every conversation, read `assistant_agent/profile.md`, `assistant_agent/instructions.md`, and `assistant_agent/contacts.md` once.** Never re-read them again within the same conversation.
 2. **ALWAYS read `coding_agent/lessons.md` before making code changes** to avoid repeating known issues.
 3. **NEVER send emails directly** via the send API. Always use `set-draft` to put drafts in the browser's reply box. The user reviews and clicks Send.
 4. **Always CC YOUR_PRIMARY_EMAIL@example.com on replies** (per instructions.md).
@@ -75,6 +75,7 @@ Actions:
 |--------|--------|-------------|
 | `set-draft` | `body` (required), `subject`, `to` | Put text in the draft reply box. Works with or without a thread open. |
 | `open-thread` | `threadId` (required) | Open an email thread in the viewer. |
+| `move-to-done` | `threadId` (required) | Move a thread to Done (adds Gmail label "Done", removes from Inbox). |
 | `refresh` | none | Reset the UI — clears open thread, draft, selections. |
 | `set-theme` | `theme`: `"dark"` \| `"light"` \| `"system"` | Change the color theme. |
 
@@ -98,7 +99,7 @@ printf '{"action":"refresh"}' \
 ### Read Emails
 
 **GET /api/emails?folder=inbox** — List email threads (grouped conversations, not individual messages).
-- `folder`: `inbox` (default), `sent`, `drafts`, `archive`
+- `folder`: `inbox` (default), `sent`, `drafts`, `archive`, `done`
 - `pageToken`: for pagination
 - Returns: `{ threads: EmailThread[] }` — each thread has `id`, `subject`, `snippet`, `participants`, `messageCount`, `latestDate`, `isRead`
 
@@ -128,6 +129,7 @@ printf '{"action":"refresh"}' \
 ```json
 {"action": "archive"}
 {"action": "markAsRead"}
+{"action": "moveToDone"}
 ```
 
 ### Calendar
@@ -188,9 +190,10 @@ printf '{"action":"refresh"}' \
 | `Enter` | Open selected thread |
 | `Escape` | Close thread / modal |
 | `e` | Archive thread |
+| `d` | Move thread to Done |
 | `r` | Reply (focuses draft box) |
 | `c` | Compose new email (modal) |
 | `/` | Focus search |
 | `t` | Cycle theme (dark → light → system) |
-| `g i/s/d/a` | Go to Inbox/Sent/Drafts/Archive |
+| `g i/s/d/a/n` | Go to Inbox/Sent/Drafts/Archive/Done |
 | `?` | Show shortcut help |

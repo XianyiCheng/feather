@@ -38,7 +38,7 @@ export async function POST(
 
   const { id } = await params;
   const body = await request.json();
-  const { action } = body as { action: "archive" | "markAsRead" | "markAsUnread" };
+  const { action } = body as { action: "archive" | "markAsRead" | "markAsUnread" | "moveToDone" | "moveToInbox" };
 
   const accessToken = await getValidAccessToken(session.user.id, "google");
   if (!accessToken) {
@@ -52,6 +52,10 @@ export async function POST(
       await emailClient.markThreadAsRead(accessToken, id);
     } else if (action === "markAsUnread") {
       await emailClient.markThreadAsUnread(accessToken, id);
+    } else if (action === "moveToDone") {
+      await emailClient.moveToDone(accessToken, id);
+    } else if (action === "moveToInbox") {
+      await emailClient.moveToInbox(accessToken, id);
     }
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,27 +1,16 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # cli event bus
 .cli-events.json
+code/.cli-events.json
 
 # dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
+code/node_modules
 
 # next.js
-/.next/
-/out/
+code/.next/
+code/out/
 
 # production
-/build
+code/build
 
 # misc
 .DS_Store
@@ -31,18 +20,15 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
-
-# vercel
-.vercel
+code/.env*
 
 # typescript
-*.tsbuildinfo
-next-env.d.ts
+code/*.tsbuildinfo
+code/next-env.d.ts
 
 # database
-prisma/dev.db
-prisma/dev.db-journal
+code/prisma/dev.db
+code/prisma/dev.db-journal

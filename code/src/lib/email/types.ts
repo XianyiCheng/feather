@@ -105,6 +105,8 @@ export interface EmailClient {
   getEmail(accessToken: string, messageId: string): Promise<Email>;
   archiveEmail(accessToken: string, messageId: string): Promise<void>;
   archiveThread(accessToken: string, threadId: string): Promise<void>;
+  moveToDone(accessToken: string, threadId: string): Promise<void>;
+  moveToInbox(accessToken: string, threadId: string): Promise<void>;
   markAsRead(accessToken: string, messageId: string): Promise<void>;
   markThreadAsRead(accessToken: string, threadId: string): Promise<void>;
   sendEmail(accessToken: string, params: SendEmailParams): Promise<void>;

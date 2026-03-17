@@ -11,6 +11,7 @@ import type { CliEvent } from "@/lib/event-bus";
  * Actions:
  *   set-draft    { body, subject?, to? }   — Put text in the draft reply box
  *   open-thread  { threadId }              — Open an email thread in the viewer
+ *   move-to-done { threadId }             — Move a thread to Done (removes from inbox)
  *   refresh      {}                        — Reset the UI to a fresh state
  *   set-theme    { theme: "dark"|"light"|"system" }
  */
@@ -53,6 +54,13 @@ export async function POST(request: NextRequest) {
       event = { type: "refresh" };
       break;
 
+    case "move-to-done":
+      if (!params.threadId) {
+        return NextResponse.json({ error: "threadId is required" }, { status: 400 });
+      }
+      event = { type: "move-to-done", threadId: params.threadId };
+      break;
+
     case "set-theme":
       if (!["dark", "light", "system"].includes(params.theme)) {
         return NextResponse.json({ error: "theme must be dark, light, or system" }, { status: 400 });
@@ -62,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     default:
       return NextResponse.json(
-        { error: `Unknown action: ${action}. Valid: set-draft, open-thread, refresh, set-theme` },
+        { error: `Unknown action: ${action}. Valid: set-draft, open-thread, move-to-done, refresh, set-theme` },
         { status: 400 }
       );
   }

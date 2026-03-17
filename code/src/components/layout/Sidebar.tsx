@@ -4,6 +4,7 @@ import { useAppStore, type Folder } from "@/store";
 
 const folders: { key: Folder; label: string; shortcut: string }[] = [
   { key: "inbox", label: "Inbox", shortcut: "g i" },
+  { key: "done", label: "Done", shortcut: "g n" },
   { key: "sent", label: "Sent", shortcut: "g s" },
   { key: "drafts", label: "Drafts", shortcut: "g d" },
   { key: "archive", label: "Archive", shortcut: "g a" },
@@ -14,7 +15,7 @@ export function Sidebar() {
   const setActiveFolder = useAppStore((s) => s.setActiveFolder);
 
   return (
-    <aside className="w-48 bg-gray-900 border-r border-gray-800 flex flex-col py-2">
+    <aside className="w-48 bg-gray-900 border-r border-gray-800 flex flex-col py-2 h-full">
       <div className="px-3 pb-2 mb-2 border-b border-gray-800">
         <h1 className="text-sm font-semibold text-gray-300 tracking-wide">
           Email Helper

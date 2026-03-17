@@ -28,6 +28,7 @@ export function useKeyboardShortcuts() {
           case "s": store.setActiveFolder("sent"); break;
           case "d": store.setActiveFolder("drafts"); break;
           case "a": store.setActiveFolder("archive"); break;
+          case "n": store.setActiveFolder("done"); break;
         }
         e.preventDefault();
         return;
@@ -53,8 +54,8 @@ export function useKeyboardShortcuts() {
         case "Escape":
           if (store.isComposeOpen) {
             store.closeCompose();
-          } else if (store.openThread) {
-            store.setOpenThread(null);
+          } else {
+            useAppStore.setState({ openThread: null, selectedIndex: -1, composeDraft: "", composeSubject: "", composeToEmail: "", composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
           }
           e.preventDefault();
           break;
@@ -65,6 +66,23 @@ export function useKeyboardShortcuts() {
           }
           e.preventDefault();
           break;
+        case "d": {
+          const s = useAppStore.getState();
+          if (s.openThread) {
+            if (s.activeFolder === "done") {
+              moveToInboxThread(s.openThread.id);
+            } else {
+              moveToDoneThread(s.openThread.id);
+            }
+            const currentIndex = s.threads.findIndex((t) => t.id === s.openThread!.id);
+            const newThreads = s.threads.filter((t) => t.id !== s.openThread!.id);
+            const nextIndex = newThreads.length === 0 ? -1 : Math.min(currentIndex, newThreads.length - 1);
+            const nextThread = nextIndex >= 0 ? newThreads[nextIndex] : null;
+            useAppStore.setState({ threads: newThreads, selectedIndex: nextIndex, openThread: nextThread, composeDraft: "", composeSubject: "", composeToEmail: "", composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
+          }
+          e.preventDefault();
+          break;
+        }
         case "r":
           if (store.openThread) {
             const latest = store.openThread.messages[store.openThread.messages.length - 1];
@@ -134,6 +152,30 @@ async function toggleReadUnread(threadId: string, isCurrentlyRead: boolean) {
     });
   } catch (error) {
     console.error("Failed to toggle read/unread:", error);
+  }
+}
+
+async function moveToDoneThread(threadId: string) {
+  try {
+    await fetch(`/api/emails/${threadId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "moveToDone" }),
+    });
+  } catch (error) {
+    console.error("Failed to move to done:", error);
+  }
+}
+
+async function moveToInboxThread(threadId: string) {
+  try {
+    await fetch(`/api/emails/${threadId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "moveToInbox" }),
+    });
+  } catch (error) {
+    console.error("Failed to move to inbox:", error);
   }
 }
 

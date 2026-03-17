@@ -155,11 +155,11 @@ export function AppShell() {
           <span><kbd className="text-gray-400">j/k</kbd> navigate</span>
           <span><kbd className="text-gray-400">Enter</kbd> open</span>
           <span><kbd className="text-gray-400">e</kbd> archive</span>
+          <span><kbd className="text-gray-400">d</kbd> done/inbox</span>
           <span><kbd className="text-gray-400">u</kbd> read/unread</span>
           <span><kbd className="text-gray-400">r</kbd> reply</span>
           <span><kbd className="text-gray-400">c</kbd> compose</span>
           <span><kbd className="text-gray-400">/</kbd> search</span>
-          <span><kbd className="text-gray-400">t</kbd> theme</span>
           <span><kbd className="text-gray-400">?</kbd> help</span>
         </div>
       </div>

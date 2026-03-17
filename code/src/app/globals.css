@@ -10,10 +10,10 @@
   --accent: #f5e6c8;
   --accent-hover: #edd5a8;
   --accent-text: #1a1a1a;
-  /* Button / selected row color — light pink */
-  --btn: #fae8ea;
-  --btn-hover: #f5d5d9;
-  --btn-text: #1a1a1a;
+  /* Button / selected row color — light gray */
+  --btn: #e5e7eb;
+  --btn-hover: #d1d5db;
+  --btn-text: #111827;
 }
 
 /* Remove browser default focus outline globally */

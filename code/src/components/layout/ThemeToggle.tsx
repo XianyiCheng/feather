@@ -26,6 +26,7 @@ export function ThemeToggle() {
     >
       <span>{icons[theme]}</span>
       <span>{labels[theme]}</span>
+      <kbd className="ml-0.5 text-gray-600">t</kbd>
     </button>
   );
 }

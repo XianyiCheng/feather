@@ -42,6 +42,17 @@ export function ThreadList({
     return () => el.removeEventListener("scroll", handleScroll);
   }, [loadingMore, hasMore, onLoadMore]);
 
+  // When threads are removed (e.g. marked done), the list may shrink below the
+  // viewport — trigger loadMore if there's more to fetch and content doesn't fill.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || loadingMore || !hasMore) return;
+    const { scrollHeight, clientHeight } = el;
+    if (scrollHeight <= clientHeight + 100) {
+      onLoadMore();
+    }
+  }, [threads.length, hasMore, loadingMore, onLoadMore]);
+
   const handleDiscard = useCallback(
     (threadId: string) => {
       setThreads(threads.filter((t) => t.id !== threadId));

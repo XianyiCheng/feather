@@ -20,6 +20,7 @@ export interface CliAttachment {
 export type CliEvent =
   | { type: "set-draft"; body: string; subject?: string; to?: string; cc?: string; bcc?: string; attachments?: CliAttachment[] }
   | { type: "open-thread"; threadId: string }
+  | { type: "move-to-done"; threadId: string }
   | { type: "refresh" }
   | { type: "set-theme"; theme: "dark" | "light" | "system" };
 
