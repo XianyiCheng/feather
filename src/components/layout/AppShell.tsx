@@ -1,0 +1,209 @@
+"use client";
+
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useAppStore } from "@/store";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useCliEvents } from "@/hooks/useCliEvents";
+import { useTheme } from "@/hooks/useTheme";
+import { useStateSync } from "@/hooks/useStateSync";
+import { useThreads } from "@/hooks/useEmails";
+import { Sidebar } from "./Sidebar";
+import { ThreadList } from "../inbox/ThreadList";
+import { ThreadView } from "../email/ThreadView";
+import { DraftReply } from "../email/DraftReply";
+import { ComposeModal } from "../email/ComposeModal";
+import { ShortcutHelp } from "./ShortcutHelp";
+import { ThemeToggle } from "./ThemeToggle";
+
+function loadSize(key: string, fallback: number): number {
+  if (typeof window === "undefined") return fallback;
+  const saved = localStorage.getItem(key);
+  return saved ? parseInt(saved, 10) : fallback;
+}
+
+function saveSize(key: string, value: number) {
+  if (typeof window !== "undefined") localStorage.setItem(key, String(Math.round(value)));
+}
+
+export function AppShell() {
+  useKeyboardShortcuts();
+  useCliEvents();
+  useTheme();
+  useStateSync();
+
+  const { threads: fetchedThreads, isLoading, loadingMore, hasMore, loadMore } = useThreads();
+  const openThread = useAppStore((s) => s.openThread);
+  const isComposeOpen = useAppStore((s) => s.isComposeOpen);
+  const showShortcutHelp = useAppStore((s) => s.showShortcutHelp);
+
+  useEffect(() => {
+    useAppStore.getState().setThreads(fetchedThreads);
+  }, [fetchedThreads]);
+
+  // Thread list width in px (resizable)
+  const [threadListW, setThreadListW] = useState(() => loadSize("threadlist-w", 320));
+  // Draft reply height as percentage of the email column
+  const [draftPct, setDraftPct] = useState(() => loadSize("draft-pct", 35));
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const emailColRef = useRef<HTMLDivElement>(null);
+
+  const startDrag = useCallback(
+    (
+      setter: (v: number) => void,
+      storageKey: string,
+      axis: "x" | "y",
+      getBase: () => number,
+      min: number,
+      max: number,
+      asPct?: boolean,
+      refEl?: React.RefObject<HTMLDivElement | null>,
+    ) => {
+      return (e: React.MouseEvent) => {
+        e.preventDefault();
+        const startPos = axis === "x" ? e.clientX : e.clientY;
+        const startVal = getBase();
+
+        function onMove(ev: MouseEvent) {
+          const delta = (axis === "x" ? ev.clientX : ev.clientY) - startPos;
+          if (asPct && refEl?.current) {
+            const total = axis === "x" ? refEl.current.offsetWidth : refEl.current.offsetHeight;
+            const deltaPct = (delta / total) * 100;
+            const newVal = Math.max(min, Math.min(max, startVal - deltaPct));
+            setter(newVal);
+            saveSize(storageKey, newVal);
+          } else {
+            const newVal = Math.max(min, Math.min(max, startVal + delta));
+            setter(newVal);
+            saveSize(storageKey, newVal);
+          }
+        }
+
+        function onUp() {
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+          document.body.style.cursor = "";
+          document.body.style.userSelect = "";
+        }
+
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+        document.body.style.cursor = axis === "x" ? "col-resize" : "row-resize";
+        document.body.style.userSelect = "none";
+      };
+    },
+    []
+  );
+
+  return (
+    <div className="h-screen flex flex-col bg-gray-950 text-gray-100">
+      <div ref={containerRef} className="flex-1 flex min-h-0">
+        {/* Col 1: Sidebar (fixed width) */}
+        <div className="w-48 flex-shrink-0 h-full overflow-hidden">
+          <Sidebar />
+        </div>
+
+        {/* Col 2: Thread list */}
+        <div style={{ width: threadListW }} className="flex-shrink-0 h-full overflow-hidden">
+          <div className="flex flex-col h-full">
+            <SearchBar />
+            <ThreadList isLoading={isLoading} loadingMore={loadingMore} hasMore={hasMore} onLoadMore={loadMore} />
+          </div>
+        </div>
+
+        <DragHandle
+          direction="col"
+          onMouseDown={startDrag(setThreadListW, "threadlist-w", "x", () => threadListW, 200, 500)}
+        />
+
+        {/* Col 3: Email + Draft — fills remaining space */}
+        <div ref={emailColRef} className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
+          {/* Thread view */}
+          <div style={{ flex: `${100 - draftPct} 0 0%` }} className="overflow-auto min-h-0">
+            {openThread ? (
+              <ThreadView />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-600">
+                <div className="text-center">
+                  <p className="text-lg">Select a conversation</p>
+                  <p className="text-sm mt-1">
+                    <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">j</kbd>/
+                    <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">k</kbd> navigate ·{" "}
+                    <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">Enter</kbd> open
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DragHandle
+            direction="row"
+            onMouseDown={startDrag(setDraftPct, "draft-pct", "y", () => draftPct, 10, 70, true, emailColRef)}
+          />
+
+          {/* Draft reply */}
+          <div style={{ flex: `${draftPct} 0 0%` }} className="overflow-hidden border-t border-gray-800 min-h-0">
+            <DraftReply />
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom bar */}
+      <div className="flex items-center justify-between px-4 py-1.5 bg-gray-900 border-t border-gray-800 text-xs text-gray-500">
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          <span><kbd className="text-gray-400">j/k</kbd> navigate</span>
+          <span><kbd className="text-gray-400">Enter</kbd> open</span>
+          <span><kbd className="text-gray-400">e</kbd> archive</span>
+          <span><kbd className="text-gray-400">u</kbd> read/unread</span>
+          <span><kbd className="text-gray-400">r</kbd> reply</span>
+          <span><kbd className="text-gray-400">c</kbd> compose</span>
+          <span><kbd className="text-gray-400">/</kbd> search</span>
+          <span><kbd className="text-gray-400">t</kbd> theme</span>
+          <span><kbd className="text-gray-400">?</kbd> help</span>
+        </div>
+      </div>
+
+      {isComposeOpen && <ComposeModal />}
+      {showShortcutHelp && <ShortcutHelp />}
+    </div>
+  );
+}
+
+function DragHandle({
+  onMouseDown,
+  direction,
+}: {
+  onMouseDown: (e: React.MouseEvent) => void;
+  direction: "col" | "row";
+}) {
+  const isCol = direction === "col";
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      className={`flex-shrink-0 flex items-center justify-center
+        ${isCol ? "w-2 cursor-col-resize" : "h-2 cursor-row-resize"}
+        bg-gray-800 hover:bg-gray-600 active:bg-gray-500 transition-colors`}
+    >
+      <div className={`rounded-full bg-gray-600 ${isCol ? "w-0.5 h-8" : "h-0.5 w-8"}`} />
+    </div>
+  );
+}
+
+function SearchBar() {
+  const searchQuery = useAppStore((s) => s.searchQuery);
+  const setSearchQuery = useAppStore((s) => s.setSearchQuery);
+
+  return (
+    <div className="p-2 border-b border-gray-800">
+      <input
+        id="search-input"
+        type="text"
+        placeholder="Search emails... (press /)"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="w-full px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 focus:border-gray-500"
+      />
+    </div>
+  );
+}

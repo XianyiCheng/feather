@@ -1,26 +1,95 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  /* Accent: text selection highlight */
+  --accent: #f5e6c8;
+  --accent-hover: #edd5a8;
+  --accent-text: #1a1a1a;
+  /* Button / selected row color — light pink */
+  --btn: #fae8ea;
+  --btn-hover: #f5d5d9;
+  --btn-text: #1a1a1a;
+}
+
+/* Remove browser default focus outline globally */
+*:focus {
+  outline: none;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  overflow: hidden;
 }
+
+/* Dark theme (default) */
+.dark body, .dark {
+  background: #030712;
+  color: #f3f4f6;
+  --btn: #2d3748;
+  --btn-hover: #3d4a5e;
+  --btn-text: #e5e7eb;
+}
+
+/* Light theme */
+.light body, .light {
+  background: #ffffff;
+  color: #111827;
+}
+
+.light .bg-gray-950 { background-color: #f9fafb; }
+.light .bg-gray-900 { background-color: #f3f4f6; }
+.light .bg-gray-800 { background-color: #e5e7eb; }
+.light .bg-gray-800\/50 { background-color: rgb(229 231 235 / 0.5); }
+.light .bg-gray-800\/30 { background-color: rgb(229 231 235 / 0.3); }
+.light .bg-gray-800\/40 { background-color: rgb(229 231 235 / 0.4); }
+.light .border-gray-800 { border-color: #e5e7eb; }
+.light .border-gray-800\/50 { border-color: rgb(229 231 235 / 0.5); }
+.light .border-gray-700 { border-color: #d1d5db; }
+.light .text-gray-100 { color: #111827; }
+.light .text-gray-200 { color: #1f2937; }
+.light .text-gray-300 { color: #374151; }
+.light .text-gray-400 { color: #4b5563; }
+.light .text-gray-500 { color: #6b7280; }
+.light .text-gray-600 { color: #9ca3af; }
+.light .text-white { color: #111827; }
+.light .placeholder-gray-500::placeholder { color: #6b7280; }
+.light .hover\:text-gray-200:hover { color: #1f2937; }
+.light .hover\:text-gray-400:hover { color: #374151; }
+.light .hover\:bg-gray-800:hover { background-color: #e5e7eb; }
+.light .hover\:bg-gray-800\/50:hover { background-color: rgb(229 231 235 / 0.5); }
+.light .hover\:bg-gray-800\/30:hover { background-color: rgb(229 231 235 / 0.3); }
+.light .focus\:ring-blue-500:focus { --tw-ring-color: #3b82f6; }
+.light .focus\:border-blue-500:focus { border-color: #3b82f6; }
+
+/* Text selection highlight — uses accent color */
+::selection {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+/* Button utility class — uses the pink button color */
+.btn-accent {
+  background-color: var(--btn);
+  color: var(--btn-text);
+}
+.btn-accent:hover {
+  background-color: var(--btn-hover);
+}
+.btn-accent:disabled {
+  opacity: 0.5;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+.dark ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+.light ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+.light ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
