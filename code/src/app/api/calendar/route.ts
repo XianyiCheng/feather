@@ -14,8 +14,11 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const timeMin = searchParams.get("timeMin") || undefined;
-  const timeMax = searchParams.get("timeMax") || undefined;
+  const timeMinRaw = searchParams.get("timeMin");
+  const timeMaxRaw = searchParams.get("timeMax");
+  // Ensure timestamps are valid ISO 8601 with timezone for Google Calendar API
+  const timeMin = timeMinRaw ? (timeMinRaw.endsWith("Z") || timeMinRaw.includes("+") ? timeMinRaw : timeMinRaw + "Z") : undefined;
+  const timeMax = timeMaxRaw ? (timeMaxRaw.endsWith("Z") || timeMaxRaw.includes("+") ? timeMaxRaw : timeMaxRaw + "Z") : undefined;
   const query = searchParams.get("q") || undefined;
 
   try {
@@ -23,6 +26,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ events });
   } catch (error) {
     console.error("Error fetching calendar events:", error);
-    return NextResponse.json({ error: "Failed to fetch events" }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: "Failed to fetch events", detail: message }, { status: 500 });
   }
 }

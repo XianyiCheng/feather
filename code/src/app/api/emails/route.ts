@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
   const folder = searchParams.get("folder") || "inbox";
   const pageToken = searchParams.get("pageToken") || undefined;
   const maxResults = parseInt(searchParams.get("maxResults") || "30", 10);
+  const query = searchParams.get("q") || undefined;
 
   const accessToken = await getValidAccessToken(session.user.id, "google");
   if (!accessToken) {
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await emailClient.listThreads(accessToken, { folder, pageToken, maxResults });
+    const result = await emailClient.listThreads(accessToken, { folder, pageToken, maxResults, query });
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error fetching threads:", error);

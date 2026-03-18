@@ -2,6 +2,10 @@
 .cli-events.json
 code/.cli-events.json
 
+# Google OAuth credentials (never commit)
+assistant_agent/token.json
+assistant_agent/client_secret.json
+
 # dependencies
 code/node_modules
 

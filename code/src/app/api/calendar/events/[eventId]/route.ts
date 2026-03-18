@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, getValidAccessToken } from "@/lib/auth";
-import { updateEvent, deleteEvent } from "@/lib/calendar/google-calendar";
+import { updateEvent, deleteEvent, acceptEvent } from "@/lib/calendar/google-calendar";
 import type { CreateEventParams } from "@/lib/calendar/types";
 
 export async function PATCH(
@@ -18,10 +18,15 @@ export async function PATCH(
   }
 
   const { eventId } = await params;
-  const body: Partial<CreateEventParams> = await request.json();
+  const body = await request.json();
 
   try {
-    const event = await updateEvent(accessToken, eventId, body);
+    if (body.attendeeResponse) {
+      const userEmail = session.user.email!;
+      const event = await acceptEvent(accessToken, eventId, userEmail, body.attendeeResponse);
+      return NextResponse.json({ event });
+    }
+    const event = await updateEvent(accessToken, eventId, body as Partial<CreateEventParams>);
     return NextResponse.json({ event });
   } catch (error) {
     console.error("Error updating calendar event:", error);

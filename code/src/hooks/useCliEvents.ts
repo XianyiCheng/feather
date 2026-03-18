@@ -45,6 +45,7 @@ export function useCliEvents() {
             });
             if (res.ok) {
               const state = useAppStore.getState();
+              state.discardThread(data.threadId);
               useAppStore.setState({
                 threads: state.threads.filter((t) => t.id !== data.threadId),
                 openThread: state.openThread?.id === data.threadId ? null : state.openThread,

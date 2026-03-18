@@ -4,18 +4,82 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useAppStore } from "@/store";
 import type { ForwardedAttachment } from "@/lib/email/types";
 
+function parseAddrs(raw: string) {
+  return raw.split(",").map((s) => {
+    const m = s.trim().match(/^(.+?)\s*<([^>]+)>$/);
+    return m ? { name: m[1].trim(), email: m[2].trim() } : { name: "", email: s.trim() };
+  }).filter((a) => a.email);
+}
+
+const MY_EMAILS = ["YOUR_GMAIL@example.com", "YOUR_PRIMARY_EMAIL@example.com", "YOUR_ALT_EMAIL@example.com"];
+const PRIMARY_CC_ADDR = "YOUR_PRIMARY_EMAIL@example.com";
+
+function ensurePrimaryCc(existing: string): string {
+  const addrs = existing.split(",").map((e) => e.trim()).filter(Boolean);
+  if (!addrs.some((e) => e.toLowerCase() === PRIMARY_CC_ADDR)) {
+    addrs.push(PRIMARY_CC_ADDR);
+  }
+  return addrs.join(", ");
+}
+
+function fmtAddr(a: { name: string; email: string }): string {
+  return a.name ? `${a.name} <${a.email}>` : a.email;
+}
+
+function computeReplyAddrs(
+  thread: { messages: Array<{ from: { name: string; email: string }; to: Array<{ name: string; email: string }>; cc: Array<{ name: string; email: string }> }> },
+  replyAll: boolean,
+  isSentFolder: boolean
+): { to: string; cc: string } {
+  const messages = thread.messages;
+  const lastMsg = messages[messages.length - 1];
+  let replyTo = "";
+
+  if (isSentFolder) {
+    const externalTo = lastMsg.to.find((a) => !MY_EMAILS.includes(a.email.toLowerCase()));
+    replyTo = externalTo?.email || lastMsg.to[0]?.email || "";
+  } else {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (!MY_EMAILS.includes(messages[i].from.email.toLowerCase())) {
+        replyTo = messages[i].from.email;
+        break;
+      }
+    }
+  }
+
+  if (!replyAll) {
+    return { to: replyTo, cc: PRIMARY_CC_ADDR };
+  }
+
+  // Reply All: include original To + CC, excluding self and the main reply-to address
+  const seen = new Set<string>([...MY_EMAILS, replyTo.toLowerCase()]);
+  const others: string[] = [];
+  for (const addr of [...lastMsg.to, ...lastMsg.cc]) {
+    const key = addr.email.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      others.push(fmtAddr(addr));
+    }
+  }
+  return { to: replyTo, cc: ensurePrimaryCc(others.join(", ")) };
+}
+
 export function DraftReply() {
   const openThread = useAppStore((s) => s.openThread);
+  const activeFolder = useAppStore((s) => s.activeFolder);
   const composeDraft = useAppStore((s) => s.composeDraft);
   const composeSubject = useAppStore((s) => s.composeSubject);
   const composeToEmail = useAppStore((s) => s.composeToEmail);
   const composeCc = useAppStore((s) => s.composeCc);
   const composeBcc = useAppStore((s) => s.composeBcc);
   const composeAttachments = useAppStore((s) => s.composeAttachments);
+  const triggerThreadRefresh = useAppStore((s) => s.triggerThreadRefresh);
 
   const [to, setTo] = useState("");
   const [cc, setCc] = useState("");
   const [bcc, setBcc] = useState("");
+  const [toFocused, setToFocused] = useState(false);
+  const [ccFocused, setCcFocused] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -23,8 +87,10 @@ export function DraftReply() {
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [draftId, setDraftId] = useState("");
   const [attachments, setAttachments] = useState<ForwardedAttachment[]>([]);
+  const [replyAll, setReplyAll] = useState(false);
 
   const prevThreadIdRef = useRef<string | null>(null);
+  const discardedRef = useRef(false);
 
   // Reset fields when thread changes, then try to load Gmail draft
   const abortRef = useRef<AbortController | null>(null);
@@ -38,26 +104,27 @@ export function DraftReply() {
     // Cancel any in-flight draft load from previous thread
     if (abortRef.current) abortRef.current.abort();
 
+    setTo("");
+    setSubject("");
     setBody("");
     setCc("");
     setBcc("");
     setDraftId("");
     setShowCcBcc(false);
     setAttachments([]);
+    setReplyAll(false);
 
     if (openThread) {
-      // Find the reply-to address: last message not from the user
-      const myEmails = ["YOUR_GMAIL@example.com", "YOUR_PRIMARY_EMAIL@example.com", "YOUR_ALT_EMAIL@example.com"];
-      const messages = openThread.messages;
-      let replyTo = "";
-      for (let i = messages.length - 1; i >= 0; i--) {
-        if (!myEmails.includes(messages[i].from.email.toLowerCase())) {
-          replyTo = messages[i].from.email;
-          break;
-        }
+      const isDraft = useAppStore.getState().activeFolder === "drafts";
+
+      if (!isDraft) {
+        const isSentFolder = useAppStore.getState().activeFolder === "sent";
+        const { to: replyTo, cc: replyCc } = computeReplyAddrs(openThread, false, isSentFolder);
+        setTo(replyTo);
+        setSubject(`Re: ${openThread.subject}`);
+        setCc(replyCc);
+        setShowCcBcc(true);
       }
-      setTo(replyTo || messages[messages.length - 1].from.email);
-      setSubject(`Re: ${openThread.subject}`);
 
       // Try to load a saved Gmail draft for this thread
       const controller = new AbortController();
@@ -75,21 +142,21 @@ export function DraftReply() {
             const text = d.body.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, "");
             setBody(text);
           }
-          if (d.to?.length) setTo(d.to.map((a: any) => a.email).join(", "));
-          if (d.cc?.length) { setCc(d.cc.map((a: any) => a.email).join(", ")); setShowCcBcc(true); }
-          if (d.bcc?.length) { setBcc(d.bcc.map((a: any) => a.email).join(", ")); setShowCcBcc(true); }
+          const fmt = (a: any) => a.name ? `${a.name} <${a.email}>` : a.email;
+          if (d.to?.length) setTo(d.to.map(fmt).join(", "));
+          const loadedCc = d.cc?.length ? d.cc.map(fmt).join(", ") : "";
+          setCc(ensurePrimaryCc(loadedCc));
+          setShowCcBcc(true);
+          if (d.bcc?.length) { setBcc(d.bcc.map(fmt).join(", ")); }
           if (d.subject) setSubject(d.subject);
         })
         .catch(() => {});
-    } else {
-      setTo("");
-      setSubject("");
     }
   }, [openThread?.id]);
 
   // CLI pushes
   useEffect(() => { if (composeDraft) { setBody(composeDraft); useAppStore.setState({ composeDraft: "" }); } }, [composeDraft]);
-  useEffect(() => { if (composeToEmail) { setTo(composeToEmail); useAppStore.setState({ composeToEmail: "" }); } }, [composeToEmail]);
+  useEffect(() => { if (composeToEmail !== null) { setTo(composeToEmail); useAppStore.setState({ composeToEmail: null }); } }, [composeToEmail]);
   useEffect(() => { if (composeSubject) { setSubject(composeSubject); useAppStore.setState({ composeSubject: "" }); } }, [composeSubject]);
   useEffect(() => { if (composeCc) { setCc(composeCc); setShowCcBcc(true); useAppStore.setState({ composeCc: "" }); } }, [composeCc]);
   useEffect(() => { if (composeBcc) { setBcc(composeBcc); setShowCcBcc(true); useAppStore.setState({ composeBcc: "" }); } }, [composeBcc]);
@@ -99,7 +166,6 @@ export function DraftReply() {
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
   const draftIdRef = useRef(draftId);
   draftIdRef.current = draftId;
-  const discardedRef = useRef(false);
 
   const saveDraftToGmail = useCallback(() => {
     if (discardedRef.current) return;
@@ -108,9 +174,9 @@ export function DraftReply() {
     if (!currentBody.trim()) return;
 
     setStatus("saving");
-    const toAddrs = currentTo.split(",").map(e => e.trim()).filter(Boolean).map(e => ({ name: "", email: e }));
-    const ccAddrs = cc.split(",").map(e => e.trim()).filter(Boolean).map(e => ({ name: "", email: e }));
-    const bccAddrs = bcc.split(",").map(e => e.trim()).filter(Boolean).map(e => ({ name: "", email: e }));
+    const toAddrs = parseAddrs(currentTo);
+    const ccAddrs = parseAddrs(cc);
+    const bccAddrs = parseAddrs(bcc);
 
     fetch("/api/drafts", {
       method: "POST",
@@ -121,7 +187,12 @@ export function DraftReply() {
         bcc: bccAddrs.length ? bccAddrs : undefined,
         subject,
         body: currentBody.replace(/\n/g, "<br>"),
-        threadId: openThread?.id,
+        threadId: (() => {
+          if (!openThread) return undefined;
+          const strip = (s: string) =>
+            s.replace(/^(Re:\s*|Fwd:\s*|Fw:\s*|\[.*?\]\s*)+/gi, "").trim().toLowerCase();
+          return strip(subject) === strip(openThread.subject) ? openThread.id : undefined;
+        })(),
         draftId: draftIdRef.current || undefined,
         attachments: attachments.length ? attachments : undefined,
       }),
@@ -165,9 +236,17 @@ export function DraftReply() {
     setSending(true);
     setStatus("");
     try {
-      const toAddrs = to.split(",").map(e => e.trim()).filter(Boolean).map(e => ({ name: "", email: e }));
-      const ccAddrs = cc.split(",").map(e => e.trim()).filter(Boolean).map(e => ({ name: "", email: e }));
-      const bccAddrs = bcc.split(",").map(e => e.trim()).filter(Boolean).map(e => ({ name: "", email: e }));
+      const toAddrs = parseAddrs(to);
+      const ccAddrs = parseAddrs(cc);
+      const bccAddrs = parseAddrs(bcc);
+
+      // Only thread the email if the subject matches the open thread
+      // (strip Re:/Fwd:/Fw:/[tags] prefixes for comparison)
+      const stripPrefixes = (s: string) =>
+        s.replace(/^(Re:\s*|Fwd:\s*|Fw:\s*|\[.*?\]\s*)+/gi, "").trim().toLowerCase();
+      const isReply = openThread &&
+        stripPrefixes(subject) === stripPrefixes(openThread.subject);
+
       const res = await fetch("/api/emails/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -177,7 +256,7 @@ export function DraftReply() {
           bcc: bccAddrs.length ? bccAddrs : undefined,
           subject: subject.trim(),
           body: body.replace(/\n/g, "<br>"),
-          replyToMessageId: openThread?.id,
+          replyToMessageId: isReply ? openThread?.id : undefined,
           attachments: attachments.length ? attachments : undefined,
         }),
       });
@@ -188,6 +267,8 @@ export function DraftReply() {
       }
       setStatus("sent");
       setBody(""); setTo(""); setCc(""); setBcc(""); setSubject(""); setDraftId(""); setAttachments([]);
+      // Reload the thread after a short delay so Gmail indexes the sent message
+      setTimeout(() => triggerThreadRefresh(), 1500);
       setTimeout(() => setStatus(""), 3000);
     } catch {
       setStatus("error");
@@ -196,18 +277,68 @@ export function DraftReply() {
     }
   }
 
+  function handleReplyAllToggle() {
+    const thread = useAppStore.getState().openThread;
+    const isDraft = useAppStore.getState().activeFolder === "drafts";
+    if (!thread || isDraft) return;
+    const isSentFolder = useAppStore.getState().activeFolder === "sent";
+    const newReplyAll = !replyAll;
+    const { to: newTo, cc: newCc } = computeReplyAddrs(thread, newReplyAll, isSentFolder);
+    setReplyAll(newReplyAll);
+    setTo(newTo);
+    setCc(newCc);
+    setShowCcBcc(true);
+  }
+
   function formatSize(bytes: number): string {
     if (bytes < 1024) return `${bytes}B`;
     if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
   }
 
+  // Show just name (or email if no name) when field is not focused
+  function displayValue(raw: string): string {
+    return raw.split(",").map((s) => {
+      const m = s.trim().match(/^(.+?)\s*<([^>]+)>$/);
+      return m ? m[1].trim() : s.trim();
+    }).filter(Boolean).join(", ");
+  }
+
+  function handleEmailKeyDown(
+    e: React.KeyboardEvent<HTMLInputElement>,
+    value: string,
+    setter: (v: string) => void
+  ) {
+    if (e.key === " ") {
+      const trimmed = value.trimEnd();
+      if (trimmed && !trimmed.endsWith(",")) {
+        e.preventDefault();
+        setter(trimmed + ", ");
+      }
+    }
+  }
+
   return (
-    <div className="flex flex-col h-full bg-gray-950">
+    <div className="flex flex-col h-full w-full bg-gray-950">
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800 flex-shrink-0">
-        <span className="text-xs font-medium text-gray-400">
-          {openThread ? "Draft Reply" : "New Email"}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-gray-400">
+            {openThread ? "Draft Reply" : "New Email"}
+          </span>
+          {openThread && activeFolder !== "drafts" && (
+            <button
+              onClick={handleReplyAllToggle}
+              className={`text-xs px-1.5 py-0.5 rounded transition-colors ${
+                replyAll
+                  ? "text-blue-400 bg-blue-500/10 hover:bg-blue-500/20"
+                  : "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
+              }`}
+              title={replyAll ? "Switch to Reply" : "Switch to Reply All"}
+            >
+              {replyAll ? "Reply All" : "Reply"}
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {status === "saving" && <span className="text-xs text-gray-500">Saving...</span>}
           {status === "saved" && <span className="text-xs text-gray-400">Draft saved</span>}
@@ -219,7 +350,12 @@ export function DraftReply() {
       <div className="px-3 py-1.5 border-b border-gray-800/50 flex-shrink-0 space-y-1">
         <div className="flex items-center gap-2">
           <label className="text-xs text-gray-500 w-10">To:</label>
-          <input type="text" value={to} onChange={(e) => setTo(e.target.value)}
+          <input type="text"
+            value={toFocused ? to : displayValue(to)}
+            onChange={(e) => setTo(e.target.value)}
+            onFocus={() => setToFocused(true)}
+            onBlur={() => setToFocused(false)}
+            onKeyDown={(e) => handleEmailKeyDown(e, to, setTo)}
             className="flex-1 bg-transparent text-xs text-gray-300 outline-none" placeholder="recipient@example.com" />
           {!showCcBcc && (
             <button onClick={() => setShowCcBcc(true)} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Cc/Bcc</button>
@@ -229,12 +365,18 @@ export function DraftReply() {
           <>
             <div className="flex items-center gap-2">
               <label className="text-xs text-gray-500 w-10">Cc:</label>
-              <input type="text" value={cc} onChange={(e) => setCc(e.target.value)}
+              <input type="text"
+                value={ccFocused ? cc : displayValue(cc)}
+                onChange={(e) => setCc(e.target.value)}
+                onFocus={() => setCcFocused(true)}
+                onBlur={() => setCcFocused(false)}
+                onKeyDown={(e) => handleEmailKeyDown(e, cc, setCc)}
                 className="flex-1 bg-transparent text-xs text-gray-300 outline-none" placeholder="cc@example.com" />
             </div>
             <div className="flex items-center gap-2">
               <label className="text-xs text-gray-500 w-10">Bcc:</label>
               <input type="text" value={bcc} onChange={(e) => setBcc(e.target.value)}
+                onKeyDown={(e) => handleEmailKeyDown(e, bcc, setBcc)}
                 className="flex-1 bg-transparent text-xs text-gray-300 outline-none" placeholder="bcc@example.com" />
             </div>
           </>
@@ -246,8 +388,8 @@ export function DraftReply() {
         </div>
       </div>
 
-      <textarea value={body} onChange={(e) => { discardedRef.current = false; setBody(e.target.value); }}
-        className="flex-1 px-3 py-2 bg-transparent text-sm text-gray-200 resize-none outline-none min-h-0"
+      <textarea value={body} onChange={(e) => setBody(e.target.value)}
+        className="flex-1 w-full px-3 py-2 bg-transparent text-sm text-gray-200 resize-none outline-none min-h-0"
         id="draft-body" placeholder="Write your reply here, or use Claude Code to draft..." />
 
       {attachments.length > 0 && (

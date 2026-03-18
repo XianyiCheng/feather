@@ -33,11 +33,14 @@ export function AppShell() {
 
   const { threads: fetchedThreads, isLoading, loadingMore, hasMore, loadMore } = useThreads();
   const openThread = useAppStore((s) => s.openThread);
+  const activeFolder = useAppStore((s) => s.activeFolder);
   const isComposeOpen = useAppStore((s) => s.isComposeOpen);
   const showShortcutHelp = useAppStore((s) => s.showShortcutHelp);
+  const isDraftOpen = activeFolder === "drafts" && !!openThread;
 
   useEffect(() => {
-    useAppStore.getState().setThreads(fetchedThreads);
+    const { discardedThreadIds, setThreads } = useAppStore.getState();
+    setThreads(fetchedThreads.filter((t) => !discardedThreadIds.has(t.id)));
   }, [fetchedThreads]);
 
   // Thread list width in px (resizable)
@@ -118,33 +121,40 @@ export function AppShell() {
 
         {/* Col 3: Email + Draft — fills remaining space */}
         <div ref={emailColRef} className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
-          {/* Thread view */}
-          <div style={{ flex: `${100 - draftPct} 0 0%` }} className="overflow-auto min-h-0">
-            {openThread ? (
-              <ThreadView />
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-600">
-                <div className="text-center">
-                  <p className="text-lg">Select a conversation</p>
-                  <p className="text-sm mt-1">
-                    <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">j</kbd>/
-                    <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">k</kbd> navigate ·{" "}
-                    <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">Enter</kbd> open
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DragHandle
-            direction="row"
-            onMouseDown={startDrag(setDraftPct, "draft-pct", "y", () => draftPct, 10, 70, true, emailColRef)}
-          />
-
-          {/* Draft reply */}
-          <div style={{ flex: `${draftPct} 0 0%` }} className="overflow-hidden border-t border-gray-800 min-h-0">
+          {isDraftOpen ? (
+            /* Draft folder: full-height compose, no thread above */
             <DraftReply />
-          </div>
+          ) : (
+            <>
+              {/* Thread view */}
+              <div style={{ flex: `${100 - draftPct} 0 0%` }} className="overflow-auto min-h-0">
+                {openThread ? (
+                  <ThreadView />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-gray-600">
+                    <div className="text-center">
+                      <p className="text-lg">Select a conversation</p>
+                      <p className="text-sm mt-1">
+                        <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">j</kbd>/
+                        <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">k</kbd> navigate ·{" "}
+                        <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">Enter</kbd> open
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <DragHandle
+                direction="row"
+                onMouseDown={startDrag(setDraftPct, "draft-pct", "y", () => draftPct, 10, 70, true, emailColRef)}
+              />
+
+              {/* Draft reply */}
+              <div style={{ flex: `${draftPct} 0 0%` }} className="overflow-hidden border-t border-gray-800 min-h-0">
+                <DraftReply />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -194,6 +204,14 @@ function SearchBar() {
   const searchQuery = useAppStore((s) => s.searchQuery);
   const setSearchQuery = useAppStore((s) => s.setSearchQuery);
 
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      setSearchQuery("");
+      (e.target as HTMLInputElement).blur();
+      e.preventDefault();
+    }
+  }
+
   return (
     <div className="p-2 border-b border-gray-800">
       <input
@@ -202,6 +220,7 @@ function SearchBar() {
         placeholder="Search emails... (press /)"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
+        onKeyDown={handleKeyDown}
         className="w-full px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 focus:border-gray-500"
       />
     </div>

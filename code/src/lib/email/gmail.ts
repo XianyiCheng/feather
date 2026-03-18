@@ -19,7 +19,7 @@ function parseHeader(headers: any[], name: string): string {
 function parseEmailAddress(raw: string): { name: string; email: string } {
   const match = raw.match(/^(.+?)\s*<(.+?)>$/);
   if (match) return { name: match[1].trim().replace(/^"|"$/g, ""), email: match[2] };
-  return { name: raw, email: raw };
+  return { name: "", email: raw.trim() };
 }
 
 function parseEmailAddresses(raw: string): { name: string; email: string }[] {
@@ -136,7 +136,9 @@ function gmailMessageToEmail(message: any, includeBody: boolean): Email {
 }
 
 function messagesToThread(threadId: string, messages: Email[]): EmailThread {
-  const sorted = [...messages].sort(
+  // Filter out trashed messages
+  const active = messages.filter((m) => !m.labels.includes("TRASH"));
+  const sorted = [...(active.length ? active : messages)].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
   const latest = sorted[sorted.length - 1];
@@ -395,6 +397,11 @@ interface AttachmentData {
   base64Data: string; // standard base64
 }
 
+function encodeRfc2047(str: string): string {
+  if (!/[^\x00-\x7F]/.test(str)) return str;
+  return `=?UTF-8?B?${Buffer.from(str, "utf-8").toString("base64")}?=`;
+}
+
 function buildRawMessage(params: { to: { name: string; email: string }[]; cc?: { name: string; email: string }[]; bcc?: { name: string; email: string }[]; subject: string; body: string }, attachmentData?: AttachmentData[]): string {
   const toHeader = params.to.map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(", ");
   const ccHeader = params.cc?.filter(a => a.email).map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(", ") || "";
@@ -403,7 +410,7 @@ function buildRawMessage(params: { to: { name: string; email: string }[]; cc?: {
   let raw = `To: ${toHeader}\n`;
   if (ccHeader) raw += `Cc: ${ccHeader}\n`;
   if (bccHeader) raw += `Bcc: ${bccHeader}\n`;
-  raw += `Subject: ${params.subject}\n`;
+  raw += `Subject: ${encodeRfc2047(params.subject)}\n`;
   raw += `MIME-Version: 1.0\n`;
 
   if (attachmentData && attachmentData.length > 0) {

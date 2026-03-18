@@ -10,9 +10,21 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export function useThreads() {
   const activeFolder = useAppStore((s) => s.activeFolder);
+  const searchQuery = useAppStore((s) => s.searchQuery);
+
+  // Debounce search query so we don't fire on every keystroke
+  const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 400);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const swrKey = debouncedQuery
+    ? `/api/emails?folder=${activeFolder}&maxResults=${PAGE_SIZE}&q=${encodeURIComponent(debouncedQuery)}`
+    : `/api/emails?folder=${activeFolder}&maxResults=${PAGE_SIZE}`;
 
   const { data, error, isLoading, mutate } = useSWR<ThreadListResult>(
-    `/api/emails?folder=${activeFolder}&maxResults=${PAGE_SIZE}`,
+    swrKey,
     fetcher,
     {
       revalidateOnFocus: true,
@@ -25,10 +37,12 @@ export function useThreads() {
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
   const prevFolderRef = useRef(activeFolder);
+  const prevQueryRef = useRef(debouncedQuery);
 
-  // Reset when folder changes
-  if (activeFolder !== prevFolderRef.current) {
+  // Reset when folder or search query changes
+  if (activeFolder !== prevFolderRef.current || debouncedQuery !== prevQueryRef.current) {
     prevFolderRef.current = activeFolder;
+    prevQueryRef.current = debouncedQuery;
     setExtraThreads([]);
     setNextPageToken(undefined);
   }
@@ -81,10 +95,11 @@ export function useThreads() {
 }
 
 export function useThreadDetail(threadId: string | null) {
-  const { data, error, isLoading } = useSWR<EmailThread>(
-    threadId ? `/api/emails/${threadId}` : null,
+  const threadRefreshCounter = useAppStore((s) => s.threadRefreshCounter);
+  const { data, error, isLoading, mutate } = useSWR<EmailThread>(
+    threadId ? `/api/emails/${threadId}?_r=${threadRefreshCounter}` : null,
     fetcher
   );
 
-  return { thread: data, isLoading, error };
+  return { thread: data, isLoading, error, mutate };
 }

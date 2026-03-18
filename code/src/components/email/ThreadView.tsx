@@ -10,9 +10,27 @@ export function ThreadView() {
   const openThread = useAppStore((s) => s.openThread);
   const setOpenThread = useAppStore((s) => s.setOpenThread);
   const setDraft = useAppStore((s) => s.setDraft);
+
   const { thread: fullThread } = useThreadDetail(openThread?.id || null);
 
   const thread = fullThread || openThread;
+
+  function handleForward() {
+    if (!thread) return;
+    const msg = thread.messages[thread.messages.length - 1];
+    const date = new Date(msg.date).toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+    const bodyText = msg.body
+      ? msg.body.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, "").replace(/\n{3,}/g, "\n\n").trim()
+      : msg.snippet || "";
+    const fwdBody =
+      `\n\n---------- Forwarded message ---------\n` +
+      `From: ${msg.from.name ? `${msg.from.name} <${msg.from.email}>` : msg.from.email}\n` +
+      `Date: ${date}\n` +
+      `Subject: ${msg.subject || thread.subject}\n` +
+      `To: ${msg.to.map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(", ")}\n\n` +
+      bodyText;
+    setDraft({ subject: `Fwd: ${thread.subject}`, to: "", body: fwdBody });
+  }
 
   // Mark thread as read and update list styling
   useEffect(() => {
@@ -49,7 +67,7 @@ export function ThreadView() {
       {/* Header */}
       <div className="p-4 border-b border-gray-800 flex-shrink-0">
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold text-white">
               {thread.subject}
             </h2>
@@ -59,6 +77,16 @@ export function ThreadView() {
               {thread.participants.length > 4 && ` +${thread.participants.length - 4}`}
             </div>
           </div>
+          <button
+            onClick={handleForward}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors flex-shrink-0"
+            title="Forward"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Forward
+          </button>
         </div>
       </div>
 
@@ -251,31 +279,107 @@ function DownloadAllButton({ attachments }: { attachments: Attachment[] }) {
   );
 }
 
-function EmailBody({ html }: { html: string }) {
-  const sanitized = DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: [
-      "p", "br", "div", "span", "a", "b", "i", "u", "strong", "em",
-      "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li",
-      "table", "tr", "td", "th", "thead", "tbody", "img", "blockquote",
-      "pre", "code", "hr", "style", "font", "center", "sup", "sub",
-    ],
-    ALLOWED_ATTR: [
-      "href", "src", "alt", "style", "class", "width", "height",
-      "face", "size", "color", "align", "valign", "bgcolor",
-      "border", "cellpadding", "cellspacing", "colspan", "rowspan",
-      "target",
-    ],
+const URL_RE = /(\bhttps?:\/\/[^\s<>"')\]]+)/g;
+
+function autoLinkUrls(html: string): string {
+  // Only linkify text outside of existing tags
+  return html.replace(/>([^<]*)</g, (match, text) => {
+    const linked = text.replace(URL_RE, (url: string) =>
+      `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+    );
+    return `>${linked}<`;
   });
+}
+
+// HTML attribute patterns for quote containers (order: most specific first)
+// NOTE: these run on RAW html (before DOMPurify) so id/class attrs are intact
+const HTML_QUOTE_PATTERNS = [
+  // Outlook: appendonsend div (appears just before hr+quote block)
+  /<div[^>]+id="appendonsend"[^>]*>/i,
+  // Outlook desktop: divRplyFwdMsg
+  /<div[^>]+id="divRplyFwdMsg"[^>]*>/i,
+  // Outlook Web App: mail-editor-reference-message-container
+  /<div[^>]+id="mail-editor-reference-message-container"[^>]*>/i,
+  // Outlook mobile separator line
+  /<div[^>]+id="ms-outlook-mobile-body-separator-line"[^>]*>/i,
+  // Gmail
+  /<div[^>]+class="[^"]*gmail_quote[^"]*"/i,
+  // Yahoo Mail
+  /<div[^>]+class="[^"]*yahoo_quoted[^"]*"/i,
+  // Outlook Web / generic hr separator before quoted block
+  /<hr[^>]*(?:id="[^"]*")?[^>]*>\s*(?=.*(?:From:|wrote:|Original Message))/i,
+  // Apple Mail / Thunderbird blockquote
+  /<blockquote/i,
+];
+
+// Plain-text quote markers
+const PLAIN_QUOTE_RE = /(?:^|\n)(-{3,}[ \t]*(?:Original Message|Forwarded message)[ \t]*-{3,}|On .{10,}wrote:|From:[ \t]+\S.*\n.*Sent:)/im;
+
+function splitQuote(html: string): { main: string; quoted: string | null } {
+  const candidates = HTML_QUOTE_PATTERNS
+    .map((re) => re.exec(html))
+    .filter((m): m is RegExpExecArray => m !== null && m.index > 0)
+    .sort((a, b) => a.index - b.index);
+
+  if (candidates.length > 0) {
+    const idx = candidates[0].index;
+    return { main: html.slice(0, idx), quoted: html.slice(idx) };
+  }
+
+  // Plain text fallback
+  const match = PLAIN_QUOTE_RE.exec(html);
+  if (match && match.index > 0) {
+    return { main: html.slice(0, match.index), quoted: html.slice(match.index) };
+  }
+
+  return { main: html, quoted: null };
+}
+
+const SANITIZE_OPTS = {
+  ALLOWED_TAGS: [
+    "p", "br", "div", "span", "a", "b", "i", "u", "strong", "em",
+    "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li",
+    "table", "tr", "td", "th", "thead", "tbody", "img", "blockquote",
+    "pre", "code", "hr", "style", "font", "center", "sup", "sub",
+  ],
+  ALLOWED_ATTR: [
+    "href", "src", "alt", "style", "class", "width", "height",
+    "face", "size", "color", "align", "valign", "bgcolor",
+    "border", "cellpadding", "cellspacing", "colspan", "rowspan",
+    "target", "rel",
+  ],
+};
+
+function EmailBody({ html }: { html: string }) {
+  const [showQuoted, setShowQuoted] = useState(false);
+
+  // Split on raw HTML first so id/class attrs are intact for pattern matching
+  // (DOMPurify strips id attributes, breaking all Outlook quote detection)
+  const { main: rawMain, quoted: rawQuoted } = splitQuote(html);
+
+  const sanitize = (s: string) => DOMPurify.sanitize(s, SANITIZE_OPTS);
+  const process = (s: string) => autoLinkUrls(s.replace(/<a\s/gi, '<a target="_blank" rel="noopener noreferrer" '));
+  const main = process(sanitize(rawMain));
+  const quoted = rawQuoted ? process(sanitize(rawQuoted)) : null;
+
+  const bodyClass = "text-sm text-gray-200 leading-relaxed prose-invert max-w-none [&_a]:text-blue-400 [&_a]:underline [&_a]:cursor-pointer [&_blockquote]:border-l-2 [&_blockquote]:border-gray-700 [&_blockquote]:pl-3 [&_blockquote]:text-gray-400 [&_img]:max-w-full [&_img]:h-auto [&_pre]:bg-gray-800 [&_pre]:p-2 [&_pre]:rounded [&_pre]:overflow-x-auto [&_table]:border-collapse [&_td]:p-1 [&_th]:p-1";
 
   return (
-    <div
-      className="text-sm text-gray-200 leading-relaxed prose-invert max-w-none
-        [&_a]:text-blue-400 [&_a]:underline
-        [&_blockquote]:border-l-2 [&_blockquote]:border-gray-700 [&_blockquote]:pl-3 [&_blockquote]:text-gray-400
-        [&_img]:max-w-full [&_img]:h-auto
-        [&_pre]:bg-gray-800 [&_pre]:p-2 [&_pre]:rounded [&_pre]:overflow-x-auto
-        [&_table]:border-collapse [&_td]:p-1 [&_th]:p-1"
-      dangerouslySetInnerHTML={{ __html: sanitized }}
-    />
+    <div>
+      <div className={bodyClass} dangerouslySetInnerHTML={{ __html: main }} />
+      {quoted && (
+        <>
+          <button
+            onClick={() => setShowQuoted((v) => !v)}
+            className="mt-2 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            {showQuoted ? "Hide quoted text" : "Show quoted text"}
+          </button>
+          {showQuoted && (
+            <div className={`mt-2 ${bodyClass}`} dangerouslySetInnerHTML={{ __html: quoted }} />
+          )}
+        </>
+      )}
+    </div>
   );
 }

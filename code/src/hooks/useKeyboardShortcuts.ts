@@ -54,13 +54,16 @@ export function useKeyboardShortcuts() {
         case "Escape":
           if (store.isComposeOpen) {
             store.closeCompose();
+          } else if (store.searchQuery) {
+            store.setSearchQuery("");
           } else {
-            useAppStore.setState({ openThread: null, selectedIndex: -1, composeDraft: "", composeSubject: "", composeToEmail: "", composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
+            useAppStore.setState({ openThread: null, selectedIndex: -1, composeDraft: "", composeSubject: "", composeToEmail: null, composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
           }
           e.preventDefault();
           break;
         case "e":
           if (store.openThread) {
+            useAppStore.getState().discardThread(store.openThread.id);
             archiveThread(store.openThread.id);
             store.setOpenThread(null);
           }
@@ -72,13 +75,14 @@ export function useKeyboardShortcuts() {
             if (s.activeFolder === "done") {
               moveToInboxThread(s.openThread.id);
             } else {
+              s.discardThread(s.openThread.id);
               moveToDoneThread(s.openThread.id);
             }
             const currentIndex = s.threads.findIndex((t) => t.id === s.openThread!.id);
             const newThreads = s.threads.filter((t) => t.id !== s.openThread!.id);
             const nextIndex = newThreads.length === 0 ? -1 : Math.min(currentIndex, newThreads.length - 1);
             const nextThread = nextIndex >= 0 ? newThreads[nextIndex] : null;
-            useAppStore.setState({ threads: newThreads, selectedIndex: nextIndex, openThread: nextThread, composeDraft: "", composeSubject: "", composeToEmail: "", composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
+            useAppStore.setState({ threads: newThreads, selectedIndex: nextIndex, openThread: nextThread, composeDraft: "", composeSubject: "", composeToEmail: null, composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
           }
           e.preventDefault();
           break;
@@ -97,6 +101,7 @@ export function useKeyboardShortcuts() {
           e.preventDefault();
           break;
         case "c":
+          if (e.metaKey || e.ctrlKey) break;
           store.openCompose({ mode: "new" });
           e.preventDefault();
           break;

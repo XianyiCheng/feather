@@ -68,6 +68,14 @@ curl -s -b "authjs.session-token=$TOKEN" http://localhost:3000/api/emails?folder
 
 **Use:** `PATCH /api/calendar/events/{eventId}` with any subset of `CreateEventParams` to update attendees, time, location, etc.
 
+## Always Verify Thread After open-thread (2026-03-17)
+
+**Problem:** Calling `open-thread` then immediately `set-draft` can place the draft on the wrong thread if the browser hasn't switched yet (or the previous thread was still active).
+
+**Fix:** Always call `GET /api/cli/state` after `open-thread` and verify the returned `openThread.id` and `subject` match the intended thread before calling `set-draft`.
+
+**Rule:** open-thread → verify state → set-draft. Never skip the verification step.
+
 ## Attachment Forwarding (2026-03-17)
 
 **Feature:** `set-draft` supports an `attachments` array for forwarding files from existing emails.

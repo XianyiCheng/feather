@@ -18,13 +18,20 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function participantNames(thread: EmailThread): string {
-  const senders = new Set<string>();
+function participantNames(thread: EmailThread, showRecipients: boolean): string {
+  const seen = new Set<string>();
+  const names: string[] = [];
   for (const msg of thread.messages) {
-    const name = msg.from.name?.split(" ")[0] || msg.from.email.split("@")[0];
-    senders.add(name);
+    const addrs = showRecipients ? msg.to : [msg.from];
+    for (const addr of addrs) {
+      const display = addr.name || addr.email.split("@")[0];
+      if (!seen.has(display)) {
+        seen.add(display);
+        names.push(display);
+      }
+    }
   }
-  const names = Array.from(senders);
+  if (names.length === 0) return thread.participants.map((p) => p.name || p.email.split("@")[0]).join(", ");
   if (names.length <= 3) return names.join(", ");
   return `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
 }
@@ -84,7 +91,7 @@ export function ThreadRow({
       >
         <div className="flex items-center justify-between gap-2">
           <span className={`text-sm truncate ${isSelected ? "text-[var(--btn-text)]" : !thread.isRead ? "text-white" : "text-gray-300"}`}>
-            {participantNames(thread)}
+            {participantNames(thread, activeFolder === "drafts" || activeFolder === "sent")}
           </span>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {thread.messageCount > 1 && (

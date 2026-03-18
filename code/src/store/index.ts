@@ -29,7 +29,7 @@ interface AppState {
   // Draft reply (controlled by CLI API)
   composeDraft: string;
   composeSubject: string;
-  composeToEmail: string;
+  composeToEmail: string | null;
   composeCc: string;
   composeBcc: string;
   composeDraftId: string; // Gmail draft ID for updates
@@ -50,9 +50,17 @@ interface AppState {
   showShortcutHelp: boolean;
   toggleShortcutHelp: () => void;
 
+  // Threads optimistically removed (moved to done/archived) — filtered from SWR results until Gmail catches up
+  discardedThreadIds: Set<string>;
+  discardThread: (id: string) => void;
+
   // CLI push event counter — incremented to trigger refetches
   refreshCounter: number;
   triggerRefresh: () => void;
+
+  // Thread detail refresh counter — incremented after sending to reload current thread
+  threadRefreshCounter: number;
+  triggerThreadRefresh: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -74,7 +82,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Folder
   activeFolder: "inbox",
   setActiveFolder: (folder) => {
-    set({ activeFolder: folder, selectedIndex: -1, openThread: null, composeDraft: "", composeSubject: "", composeToEmail: "", composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
+    set({ activeFolder: folder, selectedIndex: -1, openThread: null, composeDraft: "", composeSubject: "", composeToEmail: null, composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
   },
 
   // Thread list
@@ -98,7 +106,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       openThread: thread,
       composeDraft: "",
       composeSubject: "",
-      composeToEmail: "",
+      composeToEmail: null,
       composeCc: "",
       composeBcc: "",
       composeDraftId: "",
@@ -109,22 +117,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Draft reply
   composeDraft: "",
   composeSubject: "",
-  composeToEmail: "",
+  composeToEmail: null,
   composeCc: "",
   composeBcc: "",
   composeDraftId: "",
   composeAttachments: [],
   setDraft: (opts) =>
     set({
-      composeDraft: opts.body ?? get().composeDraft,
-      composeSubject: opts.subject ?? get().composeSubject,
-      composeToEmail: opts.to ?? get().composeToEmail,
-      composeCc: opts.cc ?? get().composeCc,
-      composeBcc: opts.bcc ?? get().composeBcc,
-      composeDraftId: opts.draftId ?? get().composeDraftId,
-      composeAttachments: opts.attachments ?? get().composeAttachments,
+      composeDraft: opts.body !== undefined ? opts.body : get().composeDraft,
+      composeSubject: opts.subject !== undefined ? opts.subject : get().composeSubject,
+      composeToEmail: opts.to !== undefined ? opts.to : get().composeToEmail,
+      composeCc: opts.cc !== undefined ? opts.cc : get().composeCc,
+      composeBcc: opts.bcc !== undefined ? opts.bcc : get().composeBcc,
+      composeDraftId: opts.draftId !== undefined ? opts.draftId : get().composeDraftId,
+      composeAttachments: opts.attachments !== undefined ? opts.attachments : get().composeAttachments,
     }),
-  clearDraft: () => set({ composeDraft: "", composeSubject: "", composeToEmail: "", composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] }),
+  clearDraft: () => set({ composeDraft: "", composeSubject: "", composeToEmail: null, composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] }),
 
   // Compose modal
   isComposeOpen: false,
@@ -133,12 +141,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       isComposeOpen: true,
       composeDraft: opts?.draft || "",
       composeSubject: opts?.subject || "",
-      composeToEmail: opts?.to || "",
+      composeToEmail: opts?.to ?? null,
       composeCc: opts?.cc || "",
       composeBcc: opts?.bcc || "",
     }),
   closeCompose: () =>
-    set({ isComposeOpen: false, composeDraft: "", composeSubject: "", composeToEmail: "", composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] }),
+    set({ isComposeOpen: false, composeDraft: "", composeSubject: "", composeToEmail: null, composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] }),
 
   // Search
   searchQuery: "",
@@ -157,10 +165,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       openThread: null,
       composeDraft: "",
       composeSubject: "",
-      composeToEmail: "",
+      composeToEmail: null,
       composeCc: "",
       composeBcc: "",
       composeDraftId: "",
       composeAttachments: [],
     })),
+
+  threadRefreshCounter: 0,
+  triggerThreadRefresh: () => set((state) => ({ threadRefreshCounter: state.threadRefreshCounter + 1 })),
+
+  discardedThreadIds: new Set<string>(),
+  discardThread: (id) => {
+    set((state) => ({ discardedThreadIds: new Set([...state.discardedThreadIds, id]) }));
+    // Clear after 30s — by then Gmail will have processed the label change
+    setTimeout(() => {
+      set((state) => {
+        const next = new Set(state.discardedThreadIds);
+        next.delete(id);
+        return { discardedThreadIds: next };
+      });
+    }, 30_000);
+  },
 }));

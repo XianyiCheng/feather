@@ -1,0 +1,79 @@
+---
+name: coding-lessons
+description: Use this skill BEFORE making any code changes to the email helper app. Triggers when editing TypeScript, React, or Next.js files in this project, or when debugging API issues, curl commands, SWR behavior, or Zustand state. Contains documented gotchas and fixes discovered during development — reading this prevents repeating known mistakes.
+---
+
+# Coding Lessons — Email Helper App
+
+## curl JSON Escaping
+**Problem:** `curl -d '{"body":"line1\nline2"}'` sends literal `\n` → `SyntaxError: Bad escaped character` from Next.js.
+
+**Fix:** Use `printf` with double-escaped newlines piped to `curl -d @-`:
+```bash
+printf '{"action":"set-draft","body":"Hello\\nWorld"}' \
+  | curl -s -X POST http://localhost:3000/api/cli -H "Content-Type: application/json" -d @-
+```
+
+## Complex JSON with curl
+**Problem:** Apostrophes or nested objects break `printf | curl`.
+
+**Fix:** Use `python3 -c` with `json.dumps` to construct the payload.
+
+## Zustand Stale Closures in Keyboard Handlers
+**Problem:** Reading `store.openThread` inside a `useEffect` keyboard handler gives stale values.
+
+**Fix:** Use `useAppStore.getState()` at call time:
+```typescript
+case "u": {
+  const currentThread = useAppStore.getState().openThread;
+}
+```
+Store *functions* (like `store.setOpenThread`) are stable — only *data* goes stale.
+
+## Infinite Scroll with SWR
+**Problem:** `useRef` for `nextPageToken` means `hasMore` never triggers re-renders.
+
+**Fix:** Use `useState` for `nextPageToken`. Use a separate `loadingMoreRef` to guard double-fetches.
+
+## SSE Event Bus
+`POST /api/cli` uses a file-based event bus (`.cli-events.json`), polled every 200ms. Silent write failures drop events — error handling added to `src/lib/event-bus.ts`.
+
+## Session Cookie for curl
+Email/calendar API endpoints require NextAuth session cookie. CLI endpoints (`/api/cli`, `/api/cli/state`) have no auth.
+
+**Fix:**
+```bash
+TOKEN=$(sqlite3 prisma/dev.db "SELECT sessionToken FROM Session ORDER BY expires DESC LIMIT 1;")
+curl -s -b "authjs.session-token=$TOKEN" http://localhost:3000/api/emails?folder=inbox
+```
+
+## Calendar Event Update API
+No PATCH existed — added:
+- `updateEvent()` in `src/lib/calendar/google-calendar.ts` (uses `calendar.events.patch` with `sendUpdates: "all"`)
+- `PATCH /api/calendar/events/[eventId]` route
+- `DELETE` on the same route
+
+## open-thread → Verify State → set-draft
+**Rule:** Always call `GET /api/cli/state` after `open-thread` and verify `openThread.id` matches the intended thread before calling `set-draft`. Never skip verification.
+
+## Attachment Forwarding
+`set-draft` supports `attachments` array:
+1. Read source email for attachment metadata (`id`, `messageId`, `filename`, `mimeType`, `size`)
+2. Pass `attachments` array in the `set-draft` call
+3. On send, `buildRawMessage` fetches attachment data from Gmail API and constructs multipart/mixed MIME
+
+## setDraft `!== undefined` vs `??`
+**Problem:** `??` operator keeps old value when new value is `""` (empty string is falsy to `??`).
+
+**Fix:** All `setDraft` fields use `!== undefined` checks so empty strings can explicitly clear fields.
+
+## composeToEmail null vs empty string
+`composeToEmail: string | null` — `null` = not set, `""` = explicitly clear.
+- `openCompose` uses `opts?.to ?? null` (not `opts?.to || ""`)
+- `setDraft` uses `!== undefined` checks
+
+## discardedThreadIds Set
+`discardedThreadIds: Set<string>` with 30s TTL filters threads from SWR updates after move-to-done/archive. 30s aligns with Gmail eventual consistency. Never use JSON-serialize this Set.
+
+## API Error Handling
+Always wrap API route handlers (`src/app/api/cli/route.ts`) with try/catch around `request.json()` and event emission to return useful error messages instead of silent 500s.

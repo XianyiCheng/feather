@@ -99,6 +99,30 @@ export async function updateEvent(
   return eventToCalendarEvent(res.data);
 }
 
+export async function acceptEvent(
+  accessToken: string,
+  eventId: string,
+  userEmail: string,
+  response: "accepted" | "declined" | "tentative" = "accepted"
+): Promise<CalendarEvent> {
+  const calendar = getCalendarClient(accessToken);
+
+  // Fetch current attendees to preserve them, then update just ours
+  const current = await calendar.events.get({ calendarId: "primary", eventId });
+  const attendees = (current.data.attendees || []).map((a: any) =>
+    a.email === userEmail ? { ...a, responseStatus: response } : a
+  );
+
+  const res = await calendar.events.patch({
+    calendarId: "primary",
+    eventId,
+    requestBody: { attendees },
+    sendUpdates: "all",
+  });
+
+  return eventToCalendarEvent(res.data);
+}
+
 export async function deleteEvent(
   accessToken: string,
   eventId: string

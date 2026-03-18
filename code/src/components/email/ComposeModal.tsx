@@ -11,7 +11,7 @@ export function ComposeModal() {
   const composeBcc = useAppStore((s) => s.composeBcc);
   const closeCompose = useAppStore((s) => s.closeCompose);
 
-  const [to, setTo] = useState(composeToEmail);
+  const [to, setTo] = useState(composeToEmail ?? "");
   const [cc, setCc] = useState(composeCc);
   const [bcc, setBcc] = useState(composeBcc);
   const [subject, setSubject] = useState(composeSubject);
@@ -28,9 +28,15 @@ export function ComposeModal() {
     setSending(true);
     setError("");
     try {
-      const toAddrs = to.split(",").map(e => e.trim()).filter(Boolean).map(e => ({ name: "", email: e }));
-      const ccAddrs = cc.split(",").map(e => e.trim()).filter(Boolean).map(e => ({ name: "", email: e }));
-      const bccAddrs = bcc.split(",").map(e => e.trim()).filter(Boolean).map(e => ({ name: "", email: e }));
+      function parseAddrs(raw: string) {
+        return raw.split(",").map((s) => {
+          const m = s.trim().match(/^(.+?)\s*<([^>]+)>$/);
+          return m ? { name: m[1].trim(), email: m[2].trim() } : { name: "", email: s.trim() };
+        }).filter((a) => a.email);
+      }
+      const toAddrs = parseAddrs(to);
+      const ccAddrs = parseAddrs(cc);
+      const bccAddrs = parseAddrs(bcc);
 
       const res = await fetch("/api/emails/send", {
         method: "POST",
