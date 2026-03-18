@@ -46,7 +46,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No access token" }, { status: 403 });
   }
 
-  const { to, cc, bcc, subject, body, threadId, draftId, attachments } = await request.json();
+  let parsedBody: any;
+  try {
+    parsedBody = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  const { to, cc, bcc, subject, body, threadId, draftId, attachments } = parsedBody;
 
   try {
     const params = {

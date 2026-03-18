@@ -188,10 +188,11 @@ export function DraftReply() {
         subject,
         body: currentBody.replace(/\n/g, "<br>"),
         threadId: (() => {
-          if (!openThread) return undefined;
+          const currentThread = useAppStore.getState().openThread;
+          if (!currentThread) return undefined;
           const strip = (s: string) =>
             s.replace(/^(Re:\s*|Fwd:\s*|Fw:\s*|\[.*?\]\s*)+/gi, "").trim().toLowerCase();
-          return strip(subject) === strip(openThread.subject) ? openThread.id : undefined;
+          return strip(subject) === strip(currentThread.subject) ? currentThread.id : undefined;
         })(),
         draftId: draftIdRef.current || undefined,
         attachments: attachments.length ? attachments : undefined,
@@ -208,7 +209,7 @@ export function DraftReply() {
         }
       })
       .catch(() => setStatus(""));
-  }, [body, to, cc, bcc, subject, openThread?.id]);
+  }, [body, to, cc, bcc, subject]);
 
   useEffect(() => {
     if (!body.trim()) return;

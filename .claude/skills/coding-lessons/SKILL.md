@@ -19,16 +19,20 @@ printf '{"action":"set-draft","body":"Hello\\nWorld"}' \
 
 **Fix:** Use `python3 -c` with `json.dumps` to construct the payload.
 
-## Zustand Stale Closures in Keyboard Handlers
+## Zustand Stale Closures in Handlers
 **Problem:** Reading `store.openThread` inside a `useEffect` keyboard handler gives stale values.
 
-**Fix:** Use `useAppStore.getState()` at call time:
+**Fix:** Use `useAppStore.getState()` at the top of the handler. Use `[]` deps and never subscribe to the full store:
 ```typescript
-case "u": {
-  const currentThread = useAppStore.getState().openThread;
-}
+useEffect(() => {
+  function handleKeyDown(e: KeyboardEvent) {
+    const s = useAppStore.getState(); // Always fresh
+  }
+  document.addEventListener("keydown", handleKeyDown);
+  return () => document.removeEventListener("keydown", handleKeyDown);
+}, []); // Empty deps
 ```
-Store *functions* (like `store.setOpenThread`) are stable — only *data* goes stale.
+Also applies to `useCallback` — use `getState()` inside instead of depending on `openThread?.id`.
 
 ## Infinite Scroll with SWR
 **Problem:** `useRef` for `nextPageToken` means `hasMore` never triggers re-renders.
@@ -76,4 +80,13 @@ No PATCH existed — added:
 `discardedThreadIds: Set<string>` with 30s TTL filters threads from SWR updates after move-to-done/archive. 30s aligns with Gmail eventual consistency. Never use JSON-serialize this Set.
 
 ## API Error Handling
-Always wrap API route handlers (`src/app/api/cli/route.ts`) with try/catch around `request.json()` and event emission to return useful error messages instead of silent 500s.
+Always wrap API route handlers with try/catch around `request.json()` and return useful error messages instead of silent 500s.
+
+## DOMPurify Strips id Attributes
+`splitQuote()` must run on raw HTML BEFORE DOMPurify sanitization. DOMPurify strips `id` attrs (not in ALLOWED_ATTR), which breaks Outlook quote detection (`divRplyFwdMsg`, `appendonsend`, etc.).
+
+## RFC 2047 for Non-ASCII Headers
+Email headers must be ASCII. Use `encodeRfc2047()` for Subject and display names in To/Cc/Bcc. Without this, non-ASCII chars (em dashes, accented names) become mojibake.
+
+## Thread Matching on Send
+Only set `replyToMessageId`/`threadId` when the draft subject (cleaned) matches the open thread's subject. Different subject = new thread. Otherwise emails get attached to wrong threads.

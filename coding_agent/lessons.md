@@ -19,19 +19,23 @@ printf '{"action":"set-draft","body":"Hello\\nWorld"}' | curl -s -X POST http://
 
 **Rule:** Always wrap API route handlers with error handling that returns useful error details.
 
-## Zustand Stale Closures in Keyboard Handlers (2026-03-17)
+## Zustand Stale Closures in Keyboard Handlers (2026-03-17, updated 2026-03-18)
 
 **Problem:** Reading `store.openThread` (data) inside a `useEffect` keyboard handler gives stale values because the closure captures an old snapshot.
 
-**Fix:** Use `useAppStore.getState()` at call time to read fresh state:
+**Fix:** Use `useAppStore.getState()` at call time to read fresh state. The entire `useKeyboardShortcuts` hook should use `[]` as its dependency array and call `getState()` at the top of the handler:
 ```typescript
-case "u": {
-  const currentThread = useAppStore.getState().openThread;
-  // ...
-}
+useEffect(() => {
+  function handleKeyDown(e: KeyboardEvent) {
+    const s = useAppStore.getState(); // Always fresh
+    // use s.openThread, s.threads, etc.
+  }
+  document.addEventListener("keydown", handleKeyDown);
+  return () => document.removeEventListener("keydown", handleKeyDown);
+}, []); // Empty deps — getState() is always current
 ```
 
-**Rule:** In keyboard shortcut handlers, always read data via `useAppStore.getState()`, not from the closure's `store` variable. Store *functions* (like `store.setOpenThread`) are stable and safe to use from closures.
+**Rule:** Never subscribe to the full store object (`const store = useAppStore()`) just to use it in an effect. Use `getState()` inside the handler instead. This also avoids re-registering the event listener on every render.
 
 ## Infinite Scroll with SWR (2026-03-17)
 
@@ -83,3 +87,38 @@ curl -s -b "authjs.session-token=$TOKEN" http://localhost:3000/api/emails?folder
 2. Pass `attachments` array in the `set-draft` CLI call
 3. UI shows attachment chips with X buttons to remove
 4. On send, `buildRawMessage` constructs multipart/mixed MIME; attachment data fetched from Gmail API
+
+## DOMPurify Strips id Attributes (2026-03-18)
+
+**Problem:** `splitQuote()` in `ThreadView.tsx` was running on DOMPurify-sanitized HTML. Since `id` is NOT in `ALLOWED_ATTR`, all Outlook quote markers (`divRplyFwdMsg`, `appendonsend`, `mail-editor-reference-message-container`) were stripped before pattern matching. Quoted email text rendered inline instead of being collapsed.
+
+**Fix:** Run `splitQuote()` on raw HTML BEFORE sanitizing. Then sanitize each part (`main` and `quoted`) separately. This preserves `id` attributes for pattern matching while still sanitizing the output.
+
+**Rule:** Any function that needs to inspect email HTML structure (ids, classes, attributes) must run before DOMPurify sanitization, not after.
+
+## RFC 2047 Encoding for Email Headers (2026-03-18)
+
+**Problem:** `buildRawMessage` wrote non-ASCII characters (em dashes, accented names, CJK) directly into Subject and To/Cc/Bcc headers. RFC 2822 headers must be ASCII. Gmail re-encoded these, creating mojibake (e.g., `—` → `â€"`).
+
+**Fix:** Added `encodeRfc2047()` that base64-encodes non-ASCII strings as `=?UTF-8?B?...?=`. Applied to both Subject and display names in address headers via `formatAddr()`.
+
+**Rule:** All email header values with potential non-ASCII content must be RFC 2047 encoded.
+
+## Emails Sent From DraftReply Get Wrong Thread (2026-03-18)
+
+**Problem:** `handleSend` always passed `replyToMessageId: openThread?.id`, so any email composed while viewing a thread was threaded with it — even with a completely different subject.
+
+**Fix:** Compare the cleaned draft subject against the open thread's subject (stripping Re:/Fwd:/[tags]). Only set `replyToMessageId` when they match. Same logic applied to `saveDraftToGmail`.
+
+**Rule:** Before threading an email, verify the subject matches the thread. Different subject = new thread.
+
+## Gmail Thread Detach Procedure (2026-03-18)
+
+**Problem:** Gmail doesn't allow moving messages between threads. A message sent with the wrong `threadId` is permanently attached.
+
+**Workaround:**
+1. Fetch the raw message via `messages.get?format=raw`
+2. Modify the Message-ID header (new UUID) and remove References/In-Reply-To headers
+3. Re-import via `messages.import` (doesn't re-send to recipients)
+4. Trash the original message
+5. Remove SPAM label from the new message (Gmail auto-flags imported messages)

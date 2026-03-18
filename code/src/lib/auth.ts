@@ -63,7 +63,17 @@ export async function getValidAccessToken(
         refresh_token: account.refresh_token,
       }),
     });
+    if (!res.ok) {
+      console.error("Google token refresh failed:", res.status, res.statusText);
+      return null;
+    }
+
     const tokenResponse = await res.json();
+
+    if (!tokenResponse.access_token) {
+      console.error("Google token response missing access_token:", tokenResponse);
+      return null;
+    }
 
     await prisma.account.update({
       where: { id: account.id },

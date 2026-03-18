@@ -37,7 +37,12 @@ export async function POST(
   }
 
   const { id } = await params;
-  const body = await request.json();
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
   const { action } = body as { action: "archive" | "markAsRead" | "markAsUnread" | "moveToDone" | "moveToInbox" };
 
   const accessToken = await getValidAccessToken(session.user.id, "google");

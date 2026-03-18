@@ -402,10 +402,15 @@ function encodeRfc2047(str: string): string {
   return `=?UTF-8?B?${Buffer.from(str, "utf-8").toString("base64")}?=`;
 }
 
+function formatAddr(a: { name: string; email: string }): string {
+  if (!a.name) return a.email;
+  return `${encodeRfc2047(a.name)} <${a.email}>`;
+}
+
 function buildRawMessage(params: { to: { name: string; email: string }[]; cc?: { name: string; email: string }[]; bcc?: { name: string; email: string }[]; subject: string; body: string }, attachmentData?: AttachmentData[]): string {
-  const toHeader = params.to.map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(", ");
-  const ccHeader = params.cc?.filter(a => a.email).map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(", ") || "";
-  const bccHeader = params.bcc?.filter(a => a.email).map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(", ") || "";
+  const toHeader = params.to.map(formatAddr).join(", ");
+  const ccHeader = params.cc?.filter(a => a.email).map(formatAddr).join(", ") || "";
+  const bccHeader = params.bcc?.filter(a => a.email).map(formatAddr).join(", ") || "";
 
   let raw = `To: ${toHeader}\n`;
   if (ccHeader) raw += `Cc: ${ccHeader}\n`;
@@ -446,8 +451,10 @@ async function fetchAttachmentData(accessToken: string, attachments: ForwardedAt
         messageId: att.messageId,
         id: att.id,
       });
-      // Gmail returns base64url data, convert to standard base64
-      const base64Data = (res.data.data || "").replace(/-/g, "+").replace(/_/g, "/");
+      // Gmail returns base64url data, convert to standard base64 with padding
+      let base64Data = (res.data.data || "").replace(/-/g, "+").replace(/_/g, "/");
+      const pad = (4 - (base64Data.length % 4)) % 4;
+      if (pad) base64Data += "=".repeat(pad);
       return {
         filename: att.filename,
         mimeType: att.mimeType,

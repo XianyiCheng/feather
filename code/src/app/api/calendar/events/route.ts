@@ -14,7 +14,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No Google access token" }, { status: 403 });
   }
 
-  const body: CreateEventParams = await request.json();
+  let body: CreateEventParams;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   if (!body.summary || !body.start || !body.end) {
     return NextResponse.json(

@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react";
 import { useAppStore } from "@/store";
 
 export function useKeyboardShortcuts() {
-  const store = useAppStore();
   const pendingKey = useRef<string | null>(null);
   const pendingTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -19,16 +18,19 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // All data reads must use getState() to avoid stale closures
+      const s = useAppStore.getState();
+
       // Handle 'g' prefix sequences
       if (pendingKey.current === "g") {
         pendingKey.current = null;
         if (pendingTimeout.current) clearTimeout(pendingTimeout.current);
         switch (e.key) {
-          case "i": store.setActiveFolder("inbox"); break;
-          case "s": store.setActiveFolder("sent"); break;
-          case "d": store.setActiveFolder("drafts"); break;
-          case "a": store.setActiveFolder("archive"); break;
-          case "n": store.setActiveFolder("done"); break;
+          case "i": s.setActiveFolder("inbox"); break;
+          case "s": s.setActiveFolder("sent"); break;
+          case "d": s.setActiveFolder("drafts"); break;
+          case "a": s.setActiveFolder("archive"); break;
+          case "n": s.setActiveFolder("done"); break;
         }
         e.preventDefault();
         return;
@@ -36,41 +38,40 @@ export function useKeyboardShortcuts() {
 
       switch (e.key) {
         case "j":
-          store.selectNext();
-          { const s = useAppStore.getState(); if (s.threads[s.selectedIndex]) s.setOpenThread(s.threads[s.selectedIndex]); }
+          s.selectNext();
+          { const fresh = useAppStore.getState(); if (fresh.threads[fresh.selectedIndex]) fresh.setOpenThread(fresh.threads[fresh.selectedIndex]); }
           e.preventDefault();
           break;
         case "k":
-          store.selectPrevious();
-          { const s = useAppStore.getState(); if (s.threads[s.selectedIndex]) s.setOpenThread(s.threads[s.selectedIndex]); }
+          s.selectPrevious();
+          { const fresh = useAppStore.getState(); if (fresh.threads[fresh.selectedIndex]) fresh.setOpenThread(fresh.threads[fresh.selectedIndex]); }
           e.preventDefault();
           break;
         case "Enter":
-          if (store.threads[store.selectedIndex]) {
-            store.setOpenThread(store.threads[store.selectedIndex]);
+          if (s.threads[s.selectedIndex]) {
+            s.setOpenThread(s.threads[s.selectedIndex]);
           }
           e.preventDefault();
           break;
         case "Escape":
-          if (store.isComposeOpen) {
-            store.closeCompose();
-          } else if (store.searchQuery) {
-            store.setSearchQuery("");
+          if (s.isComposeOpen) {
+            s.closeCompose();
+          } else if (s.searchQuery) {
+            s.setSearchQuery("");
           } else {
             useAppStore.setState({ openThread: null, selectedIndex: -1, composeDraft: "", composeSubject: "", composeToEmail: null, composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
           }
           e.preventDefault();
           break;
         case "e":
-          if (store.openThread) {
-            useAppStore.getState().discardThread(store.openThread.id);
-            archiveThread(store.openThread.id);
-            store.setOpenThread(null);
+          if (s.openThread) {
+            s.discardThread(s.openThread.id);
+            archiveThread(s.openThread.id);
+            s.setOpenThread(null);
           }
           e.preventDefault();
           break;
         case "d": {
-          const s = useAppStore.getState();
           if (s.openThread) {
             if (s.activeFolder === "done") {
               moveToInboxThread(s.openThread.id);
@@ -88,21 +89,20 @@ export function useKeyboardShortcuts() {
           break;
         }
         case "r":
-          if (store.openThread) {
-            const latest = store.openThread.messages[store.openThread.messages.length - 1];
-            store.setDraft({
+          if (s.openThread) {
+            const latest = s.openThread.messages[s.openThread.messages.length - 1];
+            s.setDraft({
               body: "",
-              subject: `Re: ${store.openThread.subject}`,
+              subject: `Re: ${s.openThread.subject}`,
               to: latest.from.email,
             });
-            // Focus the draft textarea
             setTimeout(() => document.getElementById("draft-body")?.focus(), 50);
           }
           e.preventDefault();
           break;
         case "c":
           if (e.metaKey || e.ctrlKey) break;
-          store.openCompose({ mode: "new" });
+          s.openCompose({ mode: "new" });
           e.preventDefault();
           break;
         case "/":
@@ -110,21 +110,16 @@ export function useKeyboardShortcuts() {
           e.preventDefault();
           break;
         case "t":
-          store.cycleTheme();
+          s.cycleTheme();
           e.preventDefault();
           break;
         case "u": {
-          const currentThread = useAppStore.getState().openThread;
-          if (currentThread) {
-            toggleReadUnread(currentThread.id, currentThread.isRead);
+          if (s.openThread) {
+            toggleReadUnread(s.openThread.id, s.openThread.isRead);
             useAppStore.setState({
-              openThread: { ...currentThread, isRead: !currentThread.isRead },
-            });
-            // Also update the thread in the list so the bold styling reflects
-            const threads = useAppStore.getState().threads;
-            useAppStore.setState({
-              threads: threads.map((t) =>
-                t.id === currentThread.id ? { ...t, isRead: !currentThread.isRead } : t
+              openThread: { ...s.openThread, isRead: !s.openThread.isRead },
+              threads: s.threads.map((t) =>
+                t.id === s.openThread!.id ? { ...t, isRead: !s.openThread!.isRead } : t
               ),
             });
           }
@@ -132,7 +127,7 @@ export function useKeyboardShortcuts() {
           break;
         }
         case "?":
-          store.toggleShortcutHelp();
+          s.toggleShortcutHelp();
           e.preventDefault();
           break;
         case "g":
@@ -145,7 +140,7 @@ export function useKeyboardShortcuts() {
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [store]);
+  }, []);
 }
 
 async function toggleReadUnread(threadId: string, isCurrentlyRead: boolean) {

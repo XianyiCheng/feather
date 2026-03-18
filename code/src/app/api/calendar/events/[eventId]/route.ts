@@ -18,7 +18,12 @@ export async function PATCH(
   }
 
   const { eventId } = await params;
-  const body = await request.json();
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   try {
     if (body.attendeeResponse) {
