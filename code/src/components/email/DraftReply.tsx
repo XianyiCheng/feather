@@ -5,10 +5,17 @@ import { useAppStore } from "@/store";
 import type { ForwardedAttachment } from "@/lib/email/types";
 
 function parseAddrs(raw: string) {
-  return raw.split(",").map((s) => {
-    const m = s.trim().match(/^(.+?)\s*<([^>]+)>$/);
-    return m ? { name: m[1].trim(), email: m[2].trim() } : { name: "", email: s.trim() };
-  }).filter((a) => a.email);
+  if (!raw.trim()) return [];
+  // If no angle brackets, simple comma-split for bare emails
+  if (!raw.includes("<")) {
+    return raw.split(",").map((s) => ({ name: "", email: s.trim() })).filter((a) => a.email);
+  }
+  // Split on ">, " — the real separator between "Name <email>" addresses.
+  // This preserves commas inside display names like "Name, Ph.D."
+  return raw.split(/>\s*,\s*/).map((part) => {
+    const m = part.trim().match(/^(.*?)\s*<(.+?)>?\s*$/);
+    return m ? { name: m[1].trim(), email: m[2].trim() } : { name: "", email: part.trim() };
+  }).filter((a) => a.email && a.email.includes("@"));
 }
 
 const MY_EMAILS = ["YOUR_GMAIL@example.com", "YOUR_PRIMARY_EMAIL@example.com", "YOUR_ALT_EMAIL@example.com"];
@@ -83,7 +90,7 @@ export function DraftReply() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-  const [status, setStatus] = useState<"" | "sent" | "error" | "saving" | "saved">("");
+  const [status, setStatus] = useState<"" | "sent" | "error" | "send-error" | "saving" | "saved">("");
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [draftId, setDraftId] = useState("");
   const [attachments, setAttachments] = useState<ForwardedAttachment[]>([]);
@@ -198,8 +205,13 @@ export function DraftReply() {
         attachments: attachments.length ? attachments : undefined,
       }),
     })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((saved) => {
+      .then(async (r) => {
+        if (!r.ok) {
+          console.error("Draft save failed:", r.status, await r.text().catch(() => ""));
+          setStatus("error");
+          return;
+        }
+        const saved = await r.json();
         if (saved?.id) {
           setDraftId(saved.id);
           setStatus("saved");
@@ -208,7 +220,7 @@ export function DraftReply() {
           setStatus("");
         }
       })
-      .catch(() => setStatus(""));
+      .catch((err) => { console.error("Draft save error:", err); setStatus("error"); });
   }, [body, to, cc, bcc, subject]);
 
   useEffect(() => {
@@ -268,11 +280,18 @@ export function DraftReply() {
       }
       setStatus("sent");
       setBody(""); setTo(""); setCc(""); setBcc(""); setSubject(""); setDraftId(""); setAttachments([]);
+      // If in drafts folder, remove the thread from the list and close it
+      const currentFolder = useAppStore.getState().activeFolder;
+      const sentThread = useAppStore.getState().openThread;
+      if (currentFolder === "drafts" && sentThread) {
+        useAppStore.getState().discardThread(sentThread.id);
+        useAppStore.setState({ openThread: null, selectedIndex: -1 });
+      }
       // Reload the thread after a short delay so Gmail indexes the sent message
       setTimeout(() => triggerThreadRefresh(), 1500);
       setTimeout(() => setStatus(""), 3000);
     } catch {
-      setStatus("error");
+      setStatus("send-error");
     } finally {
       setSending(false);
     }
@@ -310,6 +329,7 @@ export function DraftReply() {
     value: string,
     setter: (v: string) => void
   ) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleSend(); return; }
     if (e.key === " ") {
       const trimmed = value.trimEnd();
       if (trimmed && !trimmed.endsWith(",")) {
@@ -344,7 +364,8 @@ export function DraftReply() {
           {status === "saving" && <span className="text-xs text-gray-500">Saving...</span>}
           {status === "saved" && <span className="text-xs text-gray-400">Draft saved</span>}
           {status === "sent" && <span className="text-xs text-green-400">Sent!</span>}
-          {status === "error" && <span className="text-xs text-red-400">Failed to send</span>}
+          {status === "error" && <span className="text-xs text-red-400">Save failed</span>}
+          {status === "send-error" && <span className="text-xs text-red-400">Failed to send</span>}
         </div>
       </div>
 
@@ -385,11 +406,13 @@ export function DraftReply() {
         <div className="flex items-center gap-2">
           <label className="text-xs text-gray-500 w-10">Subj:</label>
           <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleSend(); } }}
             className="flex-1 bg-transparent text-xs text-gray-300 outline-none" placeholder="Subject" />
         </div>
       </div>
 
       <textarea value={body} onChange={(e) => setBody(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleSend(); } }}
         className="flex-1 w-full px-3 py-2 bg-transparent text-sm text-gray-200 resize-none outline-none min-h-0"
         id="draft-body" placeholder="Write your reply here, or use Claude Code to draft..." />
 

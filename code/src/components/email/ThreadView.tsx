@@ -116,7 +116,17 @@ function MessageCard({
   isLatest: boolean;
   hasBody: boolean;
 }) {
+  const setDraft = useAppStore((s) => s.setDraft);
   const [collapsed, setCollapsed] = useState(false);
+
+  function handleReplyToMessage() {
+    setDraft({
+      to: message.from.email,
+      subject: `Re: ${useAppStore.getState().openThread?.subject || message.subject}`,
+      body: "",
+    });
+    setTimeout(() => document.getElementById("draft-body")?.focus(), 50);
+  }
 
   function formatDate(dateStr: string): string {
     try {
@@ -177,6 +187,20 @@ function MessageCard({
           {message.cc.length > 0 && <span> · Cc: {message.cc.map((a) => a.email).join(", ")}</span>}
         </div>
       </button>
+
+      {/* Reply to this message */}
+      <div className="px-4 -mt-1 mb-1">
+        <button
+          onClick={(e) => { e.stopPropagation(); handleReplyToMessage(); }}
+          className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded px-1.5 py-0.5 transition-colors"
+          title={`Reply to ${message.from.name || message.from.email}`}
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+          </svg>
+          Reply
+        </button>
+      </div>
 
       {/* Message body */}
       <div className="px-4 pb-4">
