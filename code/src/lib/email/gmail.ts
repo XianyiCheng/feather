@@ -157,35 +157,98 @@ function messagesToThread(threadId: string, messages: Email[]): EmailThread {
   };
 }
 
+// Split a Gmail thread into virtual sub-threads when messages have different subjects.
+// Gmail groups by References/In-Reply-To headers, ignoring subject changes.
+function splitThreadBySubject(threadId: string, messages: Email[]): EmailThread[] {
+  const active = messages.filter((m) => !m.labels.includes("TRASH"));
+  const msgs = active.length ? active : messages;
+  // Group by cleaned subject
+  const groups = new Map<string, Email[]>();
+  for (const m of msgs) {
+    const key = cleanSubject(m.subject).toLowerCase();
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(m);
+  }
+  if (groups.size <= 1) {
+    return [messagesToThread(threadId, messages)];
+  }
+  // Multiple subjects — create virtual threads
+  // Use threadId:subjectHash as virtual ID so the app can still operate on them
+  const result: EmailThread[] = [];
+  for (const [, groupMsgs] of groups) {
+    const sorted = [...groupMsgs].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    const latest = sorted[sorted.length - 1];
+    const virtualId = `${threadId}:${sorted[0].id}`;
+    result.push({
+      id: virtualId,
+      provider: "gmail",
+      subject: cleanSubject(latest.subject || sorted[0].subject),
+      snippet: latest.snippet,
+      participants: uniqueParticipants(sorted),
+      messageCount: sorted.length,
+      messages: sorted,
+      latestDate: latest.date,
+      isRead: sorted.every((m) => m.isRead),
+      isStarred: sorted.some((m) => m.isStarred),
+      hasAttachments: sorted.some((m) => m.hasAttachments),
+    });
+  }
+  return result;
+}
+
+function resolveThreadId(threadId: string): string {
+  return threadId.includes(":") ? threadId.split(":", 2)[0] : threadId;
+}
+
 export const gmailClient: EmailClient = {
   async listThreads(accessToken: string, params: EmailListParams): Promise<ThreadListResult> {
     const gmail = getGmailClient(accessToken);
     const q = params.query
       ? `${folderToQuery(params.folder)} ${params.query}`
       : folderToQuery(params.folder);
+    const maxResults = params.maxResults || 30;
 
-    const listRes = await gmail.users.threads.list({
+    // Use messages.list instead of threads.list because Gmail sorts messages
+    // by date but threads by thread ID (creation time). This ensures threads
+    // with recent replies appear at the top even if the thread started long ago.
+    const listRes = await gmail.users.messages.list({
       userId: "me",
       q,
-      maxResults: params.maxResults || 30,
+      maxResults: maxResults * 2, // fetch extra since multiple messages may share a thread
       pageToken: params.pageToken || undefined,
     });
 
-    const threadIds = listRes.data.threads || [];
+    const msgItems = listRes.data.messages || [];
+    const seen = new Set<string>();
+    const uniqueThreadIds: string[] = [];
+    for (const m of msgItems) {
+      if (m.threadId && !seen.has(m.threadId)) {
+        seen.add(m.threadId);
+        uniqueThreadIds.push(m.threadId);
+        if (uniqueThreadIds.length >= maxResults) break;
+      }
+    }
 
-    const threads = await Promise.all(
-      threadIds.map(async (t) => {
+    const threadGroups = await Promise.all(
+      uniqueThreadIds.map(async (tid) => {
         const detail = await gmail.users.threads.get({
           userId: "me",
-          id: t.id!,
+          id: tid,
           format: "metadata",
           metadataHeaders: ["From", "To", "Cc", "Subject", "Date"],
         });
         const messages = (detail.data.messages || []).map((m: any) =>
           gmailMessageToEmail(m, false)
         );
-        return messagesToThread(t.id!, messages);
+        return splitThreadBySubject(tid, messages);
       })
+    );
+
+    // Flatten split threads and sort by latest date
+    const threads = threadGroups.flat().sort(
+      (a, b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime()
     );
 
     return {
@@ -196,15 +259,30 @@ export const gmailClient: EmailClient = {
 
   async getThread(accessToken: string, threadId: string): Promise<EmailThread> {
     const gmail = getGmailClient(accessToken);
+    // Handle virtual thread IDs (realThreadId:firstMessageId) from subject splitting
+    const [realThreadId, splitMsgId] = threadId.includes(":")
+      ? threadId.split(":", 2)
+      : [threadId, undefined];
     const detail = await gmail.users.threads.get({
       userId: "me",
-      id: threadId,
+      id: realThreadId,
       format: "full",
     });
-    const messages = (detail.data.messages || []).map((m: any) =>
+    const allMessages = (detail.data.messages || []).map((m: any) =>
       gmailMessageToEmail(m, true)
     );
-    return messagesToThread(threadId, messages);
+    if (splitMsgId) {
+      // Find the subject group that contains the split message
+      const splitMsg = allMessages.find((m) => m.id === splitMsgId);
+      if (splitMsg) {
+        const targetSubject = cleanSubject(splitMsg.subject).toLowerCase();
+        const filtered = allMessages.filter(
+          (m) => cleanSubject(m.subject).toLowerCase() === targetSubject
+        );
+        return messagesToThread(threadId, filtered);
+      }
+    }
+    return messagesToThread(threadId, allMessages);
   },
 
   async listEmails(accessToken: string, params: EmailListParams): Promise<EmailListResult> {
@@ -259,7 +337,7 @@ export const gmailClient: EmailClient = {
     const gmail = getGmailClient(accessToken);
     await gmail.users.threads.modify({
       userId: "me",
-      id: threadId,
+      id: resolveThreadId(threadId),
       requestBody: { removeLabelIds: ["INBOX"] },
     });
   },
@@ -269,7 +347,7 @@ export const gmailClient: EmailClient = {
     const labelId = await getOrCreateLabel(gmail, "Done");
     await gmail.users.threads.modify({
       userId: "me",
-      id: threadId,
+      id: resolveThreadId(threadId),
       requestBody: { addLabelIds: [labelId], removeLabelIds: ["INBOX"] },
     });
   },
@@ -279,7 +357,7 @@ export const gmailClient: EmailClient = {
     const labelId = await getOrCreateLabel(gmail, "Done");
     await gmail.users.threads.modify({
       userId: "me",
-      id: threadId,
+      id: resolveThreadId(threadId),
       requestBody: { addLabelIds: ["INBOX"], removeLabelIds: [labelId] },
     });
   },
@@ -297,7 +375,7 @@ export const gmailClient: EmailClient = {
     const gmail = getGmailClient(accessToken);
     await gmail.users.threads.modify({
       userId: "me",
-      id: threadId,
+      id: resolveThreadId(threadId),
       requestBody: { removeLabelIds: ["UNREAD"] },
     });
   },
@@ -306,7 +384,7 @@ export const gmailClient: EmailClient = {
     const gmail = getGmailClient(accessToken);
     await gmail.users.threads.modify({
       userId: "me",
-      id: threadId,
+      id: resolveThreadId(threadId),
       requestBody: { addLabelIds: ["UNREAD"] },
     });
   },
@@ -338,7 +416,7 @@ export const gmailClient: EmailClient = {
     const res = await gmail.users.drafts.create({
       userId: "me",
       requestBody: {
-        message: { raw, threadId: params.threadId || undefined },
+        message: { raw, threadId: params.threadId ? resolveThreadId(params.threadId) : undefined },
       },
     });
     return parseDraftResponse(res.data);
@@ -355,7 +433,7 @@ export const gmailClient: EmailClient = {
       userId: "me",
       id: draftId,
       requestBody: {
-        message: { raw, threadId: params.threadId || undefined },
+        message: { raw, threadId: params.threadId ? resolveThreadId(params.threadId) : undefined },
       },
     });
     return parseDraftResponse(res.data);
@@ -382,13 +460,14 @@ export const gmailClient: EmailClient = {
     const listRes = await gmail.users.drafts.list({ userId: "me" });
     const drafts = listRes.data.drafts || [];
     for (const d of drafts) {
-      if (d.message?.threadId === threadId) {
+      if (d.message?.threadId === resolveThreadId(threadId)) {
         const detail = await gmail.users.drafts.get({ userId: "me", id: d.id!, format: "full" });
         return parseDraftResponse(detail.data);
       }
     }
     return null;
   },
+
 };
 
 interface AttachmentData {

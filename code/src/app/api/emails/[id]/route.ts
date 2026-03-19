@@ -43,7 +43,9 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
-  const { action } = body as { action: "archive" | "markAsRead" | "markAsUnread" | "moveToDone" | "moveToInbox" };
+  const { action } = body as {
+    action: "archive" | "markAsRead" | "markAsUnread" | "moveToDone" | "moveToInbox";
+  };
 
   const accessToken = await getValidAccessToken(session.user.id, "google");
   if (!accessToken) {

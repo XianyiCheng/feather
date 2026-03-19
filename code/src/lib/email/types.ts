@@ -120,7 +120,11 @@ export interface EmailClient {
 }
 
 export function cleanSubject(subject: string): string {
-  return subject.replace(/^(Re:\s*|Fwd:\s*|Fw:\s*)+/i, "").trim();
+  // Strip Re:/Fwd:/Fw: prefixes and [EXTERNAL]/[WARNING - EXTERNAL] tags
+  return subject
+    .replace(/\[[\w\s-]*EXTERNAL[\w\s-]*\]\s*/gi, "")
+    .replace(/^(Re:\s*|Fwd:\s*|Fw:\s*)+/i, "")
+    .trim();
 }
 
 export function uniqueParticipants(messages: Email[]): EmailAddress[] {

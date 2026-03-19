@@ -24,6 +24,15 @@ Read `assistant_agent/profile.md` for the user's identity, email tone, and draft
 1. Look up recipient in `assistant_agent/contacts.md` if needed
 2. `POST /api/cli` → `set-draft` with `body`, `subject`, and `to`
 
+**Multiple new emails (batch):**
+Do NOT use multiple `set-draft` calls — each one overwrites the previous. Instead, save each draft directly to Gmail via `POST /api/drafts` (requires session token), then tell the user to press `g d` to view them in the Drafts folder.
+```python
+curl -s -X POST -b "authjs.session-token=$TOKEN" http://localhost:3000/api/drafts \
+  -H "Content-Type: application/json" \
+  -d '{"to":[{"name":"Name","email":"x@y.com"}],"cc":[...],"subject":"...","body":"<html>"}'
+```
+Body must use `<br>` for newlines (HTML format). The `to`/`cc`/`bcc` fields are arrays of `{name, email}` objects.
+
 ## set-draft curl Syntax
 ```bash
 printf '{"action":"set-draft","body":"Hello\\nWorld","subject":"Hi","to":"x@y.com"}' \

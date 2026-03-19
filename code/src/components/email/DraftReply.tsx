@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useSWRConfig } from "swr";
 import { useAppStore } from "@/store";
 import type { ForwardedAttachment } from "@/lib/email/types";
 
@@ -81,6 +82,9 @@ export function DraftReply() {
   const composeBcc = useAppStore((s) => s.composeBcc);
   const composeAttachments = useAppStore((s) => s.composeAttachments);
   const triggerThreadRefresh = useAppStore((s) => s.triggerThreadRefresh);
+  const composeQueue = useAppStore((s) => s.composeQueue);
+  const activeComposeIndex = useAppStore((s) => s.activeComposeIndex);
+  const { mutate: globalMutate } = useSWRConfig();
 
   const [to, setTo] = useState("");
   const [cc, setCc] = useState("");
@@ -99,17 +103,49 @@ export function DraftReply() {
   const prevThreadIdRef = useRef<string | null>(null);
   const discardedRef = useRef(false);
 
+  // Cache draft state per thread so switching threads doesn't lose work
+  interface DraftState {
+    to: string; cc: string; bcc: string; subject: string; body: string;
+    draftId: string; showCcBcc: boolean; attachments: ForwardedAttachment[];
+    replyAll: boolean;
+  }
+  const draftCacheRef = useRef<Map<string, DraftState>>(new Map());
+
+  // Keep refs to current field values so the thread-switch effect always reads fresh state
+  const fieldsRef = useRef({ to, cc, bcc, subject, body, draftId, showCcBcc, attachments, replyAll });
+  fieldsRef.current = { to, cc, bcc, subject, body, draftId, showCcBcc, attachments, replyAll };
+
   // Reset fields when thread changes, then try to load Gmail draft
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const newId = openThread?.id ?? null;
     if (newId === prevThreadIdRef.current) return;
+    const prevId = prevThreadIdRef.current;
     prevThreadIdRef.current = newId;
     discardedRef.current = false;
 
     // Cancel any in-flight draft load from previous thread
     if (abortRef.current) abortRef.current.abort();
+
+    // Save current draft state for previous thread (if it has content)
+    const f = fieldsRef.current;
+    if (prevId && f.body.trim()) {
+      draftCacheRef.current.set(prevId, { ...f });
+    } else if (prevId) {
+      // No content — remove stale cache entry
+      draftCacheRef.current.delete(prevId);
+    }
+
+    // Try to restore cached draft for the new thread
+    const cached = newId ? draftCacheRef.current.get(newId) : undefined;
+    if (cached) {
+      setTo(cached.to); setCc(cached.cc); setBcc(cached.bcc);
+      setSubject(cached.subject); setBody(cached.body);
+      setDraftId(cached.draftId); setShowCcBcc(cached.showCcBcc);
+      setAttachments(cached.attachments); setReplyAll(cached.replyAll);
+      return; // Skip default init & Gmail draft load — we already have state
+    }
 
     setTo("");
     setSubject("");
@@ -161,13 +197,35 @@ export function DraftReply() {
     }
   }, [openThread?.id]);
 
-  // CLI pushes
+  // CLI pushes (for replies / single drafts when a thread is open)
   useEffect(() => { if (composeDraft) { setBody(composeDraft); useAppStore.setState({ composeDraft: "" }); } }, [composeDraft]);
   useEffect(() => { if (composeToEmail !== null) { setTo(composeToEmail); useAppStore.setState({ composeToEmail: null }); } }, [composeToEmail]);
   useEffect(() => { if (composeSubject) { setSubject(composeSubject); useAppStore.setState({ composeSubject: "" }); } }, [composeSubject]);
   useEffect(() => { if (composeCc) { setCc(composeCc); setShowCcBcc(true); useAppStore.setState({ composeCc: "" }); } }, [composeCc]);
   useEffect(() => { if (composeBcc) { setBcc(composeBcc); setShowCcBcc(true); useAppStore.setState({ composeBcc: "" }); } }, [composeBcc]);
   useEffect(() => { if (composeAttachments.length) { setAttachments(composeAttachments); useAppStore.setState({ composeAttachments: [] }); } }, [composeAttachments]);
+
+  // Load from compose queue when active index changes (for multi-draft new emails)
+  const prevQueueIndexRef = useRef<number>(-1);
+  const prevQueueLenRef = useRef<number>(0);
+  useEffect(() => {
+    if (openThread) return; // Queue only applies to new compose
+    if (composeQueue.length === 0) return;
+    // Only load when index or queue length changes
+    if (activeComposeIndex === prevQueueIndexRef.current && composeQueue.length === prevQueueLenRef.current) return;
+    prevQueueIndexRef.current = activeComposeIndex;
+    prevQueueLenRef.current = composeQueue.length;
+    const draft = composeQueue[activeComposeIndex];
+    if (!draft) return;
+    setTo(draft.to);
+    setCc(draft.cc);
+    setBcc(draft.bcc);
+    setSubject(draft.subject);
+    setBody(draft.body);
+    setAttachments(draft.attachments);
+    setShowCcBcc(!!(draft.cc || draft.bcc));
+    setDraftId("");
+  }, [activeComposeIndex, composeQueue.length, openThread]);
 
   // Auto-save to Gmail draft (debounced 3s)
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -230,19 +288,31 @@ export function DraftReply() {
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
   }, [body, to, cc, bcc, subject, saveDraftToGmail]);
 
-  // Sync to CLI state
+  // Sync to CLI state and keep compose queue in sync
   const syncTimer = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (syncTimer.current) clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(() => {
+      const { composeQueue: q, activeComposeIndex: idx } = useAppStore.getState();
       fetch("/api/cli/state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft: { to, cc, bcc, subject, body } }),
+        body: JSON.stringify({
+          draft: { to, cc, bcc, subject, body },
+          composeQueue: q.map((d) => ({ to: d.to, subject: d.subject })),
+          activeComposeIndex: idx,
+        }),
       }).catch(() => {});
+      // Keep compose queue entry in sync with field edits
+      const { composeQueue, activeComposeIndex, openThread: ot } = useAppStore.getState();
+      if (!ot && composeQueue.length > 0 && composeQueue[activeComposeIndex]) {
+        const updated = [...composeQueue];
+        updated[activeComposeIndex] = { to, cc, bcc, subject, body, attachments };
+        useAppStore.setState({ composeQueue: updated });
+      }
     }, 300);
     return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
-  }, [to, cc, bcc, subject, body]);
+  }, [to, cc, bcc, subject, body, attachments]);
 
   async function handleSend() {
     if (!to.trim() || !body.trim()) return;
@@ -279,6 +349,14 @@ export function DraftReply() {
         fetch(`/api/drafts?draftId=${draftId}`, { method: "DELETE" }).catch(() => {});
       }
       setStatus("sent");
+      // Clear cached draft for this thread
+      const sentId = useAppStore.getState().openThread?.id;
+      if (sentId) draftCacheRef.current.delete(sentId);
+      // Remove from compose queue if applicable
+      const currentQueue = useAppStore.getState().composeQueue;
+      if (!sentId && currentQueue.length > 0) {
+        handleRemoveCompose(useAppStore.getState().activeComposeIndex);
+      }
       setBody(""); setTo(""); setCc(""); setBcc(""); setSubject(""); setDraftId(""); setAttachments([]);
       // If in drafts folder, remove the thread from the list and close it
       const currentFolder = useAppStore.getState().activeFolder;
@@ -287,13 +365,58 @@ export function DraftReply() {
         useAppStore.getState().discardThread(sentThread.id);
         useAppStore.setState({ openThread: null, selectedIndex: -1 });
       }
-      // Reload the thread after a short delay so Gmail indexes the sent message
-      setTimeout(() => triggerThreadRefresh(), 1500);
+      // Reload the thread and list after a short delay so Gmail indexes the sent message
+      setTimeout(() => {
+        triggerThreadRefresh();
+        globalMutate((key: unknown) => typeof key === "string" && key.startsWith("/api/emails"));
+      }, 1500);
       setTimeout(() => setStatus(""), 3000);
     } catch {
       setStatus("send-error");
     } finally {
       setSending(false);
+    }
+  }
+
+  function handleSwitchCompose(index: number) {
+    if (index === activeComposeIndex || index < 0 || index >= composeQueue.length) return;
+    // Save current local fields to queue
+    useAppStore.getState().updateQueueEntry(activeComposeIndex, {
+      to, cc, bcc, subject, body, attachments,
+    });
+    // Load target draft from queue
+    const target = composeQueue[index];
+    setTo(target.to); setCc(target.cc); setBcc(target.bcc);
+    setSubject(target.subject); setBody(target.body);
+    setAttachments(target.attachments);
+    setShowCcBcc(!!(target.cc || target.bcc));
+    setDraftId("");
+    useAppStore.getState().setActiveComposeIndex(index);
+  }
+
+  function handleRemoveCompose(index: number) {
+    const queue = useAppStore.getState().composeQueue;
+    if (queue.length <= 1) {
+      useAppStore.setState({ composeQueue: [], activeComposeIndex: 0 });
+      setTo(""); setCc(""); setBcc(""); setSubject(""); setBody(""); setDraftId(""); setAttachments([]);
+      return;
+    }
+    // If removing active tab, save isn't needed — just load the next one
+    // If removing non-active, save current first
+    if (index !== activeComposeIndex) {
+      useAppStore.getState().updateQueueEntry(activeComposeIndex, {
+        to, cc, bcc, subject, body, attachments,
+      });
+    }
+    useAppStore.getState().removeQueueEntry(index);
+    // Load whatever is now active
+    const newState = useAppStore.getState();
+    const target = newState.composeQueue[newState.activeComposeIndex];
+    if (target) {
+      setTo(target.to); setCc(target.cc); setBcc(target.bcc);
+      setSubject(target.subject); setBody(target.body);
+      setAttachments(target.attachments);
+      setShowCcBcc(!!(target.cc || target.bcc));
     }
   }
 
@@ -341,6 +464,36 @@ export function DraftReply() {
 
   return (
     <div className="flex flex-col h-full w-full bg-gray-950">
+      {!openThread && composeQueue.length > 1 && (
+        <div className="flex items-center gap-1 px-3 py-1.5 border-b border-gray-800 flex-shrink-0 overflow-x-auto">
+          {composeQueue.map((draft, i) => {
+            const label = draft.to ? draft.to.split("@")[0].split("<").pop()?.trim() || `Draft ${i + 1}` : `Draft ${i + 1}`;
+            return (
+              <div key={i} className="flex items-center group">
+                <button
+                  onClick={() => handleSwitchCompose(i)}
+                  className={`text-xs px-2 py-1 rounded-t transition-colors truncate max-w-[120px] ${
+                    i === activeComposeIndex
+                      ? "text-blue-400 bg-blue-500/10 border-b-2 border-blue-400"
+                      : "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
+                  }`}
+                  title={draft.to}
+                >
+                  {label}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleRemoveCompose(i); }}
+                  className="text-gray-600 hover:text-red-400 text-xs ml-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Close draft"
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800 flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-gray-400">

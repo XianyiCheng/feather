@@ -59,7 +59,7 @@ export function useKeyboardShortcuts() {
           } else if (s.searchQuery) {
             s.setSearchQuery("");
           } else {
-            useAppStore.setState({ openThread: null, selectedIndex: -1, composeDraft: "", composeSubject: "", composeToEmail: null, composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
+            useAppStore.setState({ openThread: null, selectedIndex: -1 });
           }
           e.preventDefault();
           break;
@@ -83,7 +83,7 @@ export function useKeyboardShortcuts() {
             const newThreads = s.threads.filter((t) => t.id !== s.openThread!.id);
             const nextIndex = newThreads.length === 0 ? -1 : Math.min(currentIndex, newThreads.length - 1);
             const nextThread = nextIndex >= 0 ? newThreads[nextIndex] : null;
-            useAppStore.setState({ threads: newThreads, selectedIndex: nextIndex, openThread: nextThread, composeDraft: "", composeSubject: "", composeToEmail: null, composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
+            useAppStore.setState({ threads: newThreads, selectedIndex: nextIndex, openThread: nextThread });
           }
           e.preventDefault();
           break;

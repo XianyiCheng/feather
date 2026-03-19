@@ -61,6 +61,13 @@ export async function POST(request: NextRequest) {
       event = { type: "move-to-done", threadId: params.threadId };
       break;
 
+    case "set-drafts":
+      if (!params.drafts || !Array.isArray(params.drafts) || params.drafts.length === 0) {
+        return NextResponse.json({ error: "drafts array is required" }, { status: 400 });
+      }
+      event = { type: "set-drafts", drafts: params.drafts };
+      break;
+
     case "set-theme":
       if (!["dark", "light", "system"].includes(params.theme)) {
         return NextResponse.json({ error: "theme must be dark, light, or system" }, { status: 400 });
@@ -70,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     default:
       return NextResponse.json(
-        { error: `Unknown action: ${action}. Valid: set-draft, open-thread, move-to-done, refresh, set-theme` },
+        { error: `Unknown action: ${action}. Valid: set-draft, set-drafts, open-thread, move-to-done, refresh, set-theme` },
         { status: 400 }
       );
   }

@@ -18,6 +18,14 @@ function formatDate(dateStr: string): string {
   }
 }
 
+function decodeHtmlEntities(text: string): string {
+  const entities: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&apos;": "'" };
+  return text
+    .replace(/&(?:amp|lt|gt|quot|apos|#39);/g, (m) => entities[m] || m)
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+
 function participantNames(thread: EmailThread, showRecipients: boolean): string {
   const seen = new Set<string>();
   const names: string[] = [];
@@ -108,7 +116,7 @@ export function ThreadRow({
           {thread.subject}
         </div>
         <div className={`text-xs truncate mt-0.5 ${isSelected ? "text-[var(--btn-text)] opacity-60" : "text-gray-600"}`}>
-          {thread.snippet}
+          {decodeHtmlEntities(thread.snippet)}
         </div>
       </button>
 

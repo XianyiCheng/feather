@@ -117,8 +117,37 @@ curl -s -b "authjs.session-token=$TOKEN" http://localhost:3000/api/emails?folder
 **Problem:** Gmail doesn't allow moving messages between threads. A message sent with the wrong `threadId` is permanently attached.
 
 **Workaround:**
-1. Fetch the raw message via `messages.get?format=raw`
-2. Modify the Message-ID header (new UUID) and remove References/In-Reply-To headers
-3. Re-import via `messages.import` (doesn't re-send to recipients)
-4. Trash the original message
-5. Remove SPAM label from the new message (Gmail auto-flags imported messages)
+**Update:** Physical thread detachment via `messages.import` is unreliable (Gmail re-threads by subject, adds SENT label if From matches account, loses INBOX label on untrash). Instead, we split threads **in the UI by subject**: `splitThreadBySubject()` groups messages by `cleanSubject()` and creates virtual thread IDs (`realThreadId:firstMessageId`). All thread actions resolve virtual IDs via `resolveThreadId()`.
+
+## Gmail threads.list Sort Order (2026-03-19)
+
+**Problem:** `threads.list` sorts by thread ID (creation time), not by latest message. Old threads with new replies get buried in pagination.
+
+**Fix:** Use `messages.list` (sorts by date) → deduplicate by threadId → fetch thread details. This ensures threads with recent activity appear first.
+
+## cleanSubject and [EXTERNAL] Tags (2026-03-19)
+
+**Problem:** Email gateways prepend `[WARNING - EXTERNAL]` or `[EXTERNAL]` to subjects. This causes subject-based thread splitting to create extra groups for the same conversation.
+
+**Fix:** `cleanSubject()` now strips `[*EXTERNAL*]` tags before removing Re:/Fwd: prefixes.
+
+## Multi-Draft Per-Thread Cache (2026-03-19)
+
+**Problem:** Switching threads or navigating away lost the in-progress draft. The store (`setOpenThread`, `setActiveFolder`, Escape/Done keyboard shortcuts) cleared all compose fields on every navigation, and DraftReply held a single set of `useState` fields with no persistence across thread switches.
+
+**Fix:** Added a `draftCacheRef` (Map keyed by thread ID) in DraftReply that saves/restores draft state on thread switches. A `fieldsRef` tracks current field values so the effect always reads fresh state (avoids stale closures since the fields aren't in the deps array). Removed compose field clearing from `setOpenThread`, `setActiveFolder`, and keyboard shortcuts (Escape, Done) — DraftReply's cache handles persistence independently.
+
+**Key details:**
+- Cache saves when switching **away** from a thread with non-empty body
+- Cache restores when switching **back** — skips Gmail draft fetch and default reply init
+- Cache entry deleted on send (prevent stale restore) and when body is empty
+- `clearDraft()`, `closeCompose()`, and `triggerRefresh()` still clear compose fields (intentional resets)
+- Store compose fields (`composeDraft`, etc.) are now only a one-shot signal channel from CLI → DraftReply; they are not cleared by navigation
+
+**Rule:** Never clear compose fields in navigation actions. DraftReply owns its own state via the per-thread cache. Only explicit user/CLI actions (clear, close, refresh) should reset drafts.
+
+## Outlook \r\n Line Endings in Quote Detection (2026-03-19)
+
+**Problem:** `PLAIN_QUOTE_RE` in `splitQuote()` used `\n` for line breaks, but Outlook emails use `\r\n`. The `From:...\nSent:` pattern didn't match `From:...\r\nSent:`, so quoted text wasn't collapsed.
+
+**Fix:** Changed all `\n` in the regex to `\r?\n` to match both Unix and Windows line endings.

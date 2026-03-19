@@ -90,3 +90,23 @@ Email headers must be ASCII. Use `encodeRfc2047()` for Subject and display names
 
 ## Thread Matching on Send
 Only set `replyToMessageId`/`threadId` when the draft subject (cleaned) matches the open thread's subject. Different subject = new thread. Otherwise emails get attached to wrong threads.
+
+## Multi-Draft Per-Thread Cache
+DraftReply has a `draftCacheRef` (Map<threadId, DraftState>) that saves/restores draft fields on thread switch. A `fieldsRef` tracks current values to avoid stale closures. Navigation actions (`setOpenThread`, `setActiveFolder`, keyboard shortcuts) must NOT clear compose fields — DraftReply's cache handles persistence. Only `clearDraft()`, `closeCompose()`, and `triggerRefresh()` should reset drafts.
+
+## Gmail threads.list Sort Order
+`threads.list` sorts by thread creation, not latest message. Use `messages.list` (date-sorted) → deduplicate by threadId → fetch threads. See `listThreads()` in `gmail.ts`.
+
+## Subject-Based Thread Splitting
+Gmail threads messages by References/In-Reply-To headers regardless of subject changes. `splitThreadBySubject()` creates virtual thread IDs (`realThreadId:firstMessageId`). All thread actions resolve via `resolveThreadId()`. `cleanSubject()` strips `[*EXTERNAL*]` tags.
+
+## Outlook \r\n in Quote Detection
+`PLAIN_QUOTE_RE` must use `\r?\n` (not `\n`) to match both Unix and Windows line endings in `From:...\r\nSent:` patterns.
+
+## Multiple New Emails — Use Gmail Drafts API, Not set-draft
+**Problem:** Multiple `set-draft` calls for new emails (no open thread) overwrite each other — the compose panel only holds one draft. Attempting to queue them via Zustand store fails because the compose field pipeline (`composeDraft` → useEffect → local state) loses intermediate values when events arrive rapidly.
+
+**Fix:** For batch new emails, save each directly to Gmail via `POST /api/drafts` (requires session token). User views them in the Drafts folder (`g d`). `set-draft` is only for single drafts or replies to an open thread.
+
+## Event Bus Supports Queued Events
+`emitEvent()` now appends to a JSON array in `.cli-events.json` instead of overwriting. `pollEvents()` returns all events newer than `since` and cleans up consumed events. This prevents rapid-fire CLI calls from dropping events. The SSE endpoint delivers all queued events per poll cycle.

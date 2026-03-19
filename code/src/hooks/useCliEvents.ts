@@ -16,16 +16,57 @@ export function useCliEvents() {
         const data = JSON.parse(event.data);
 
         switch (data.type) {
-          case "set-draft":
-            useAppStore.setState({
-              composeDraft: data.body,
-              composeSubject: data.subject || useAppStore.getState().composeSubject,
-              composeToEmail: data.to || useAppStore.getState().composeToEmail,
-              composeCc: data.cc || useAppStore.getState().composeCc,
-              composeBcc: data.bcc || useAppStore.getState().composeBcc,
-              composeAttachments: data.attachments || useAppStore.getState().composeAttachments,
-            });
+          case "set-draft": {
+            const state = useAppStore.getState();
+            const isNewCompose = !!data.to && !state.openThread;
+
+            if (isNewCompose) {
+              // Append to compose queue — DraftReply reads from queue directly
+              const newDraft = {
+                to: data.to || "",
+                cc: data.cc || "",
+                bcc: data.bcc || "",
+                subject: data.subject || "",
+                body: data.body || "",
+                attachments: data.attachments || [],
+              };
+              const queue = [...state.composeQueue, newDraft];
+              useAppStore.setState({
+                composeQueue: queue,
+                activeComposeIndex: queue.length - 1,
+              });
+            } else {
+              // Reply or update current draft (thread open)
+              useAppStore.setState({
+                composeDraft: data.body,
+                composeSubject: data.subject || state.composeSubject,
+                composeToEmail: data.to || state.composeToEmail,
+                composeCc: data.cc || state.composeCc,
+                composeBcc: data.bcc || state.composeBcc,
+                composeAttachments: data.attachments || state.composeAttachments,
+              });
+            }
             break;
+          }
+
+          case "set-drafts": {
+            // Batch: set entire compose queue at once (avoids timing issues with multiple set-draft calls)
+            const drafts = (data.drafts || []).map((d: any) => ({
+              to: d.to || "",
+              cc: d.cc || "",
+              bcc: d.bcc || "",
+              subject: d.subject || "",
+              body: d.body || "",
+              attachments: d.attachments || [],
+            }));
+            if (drafts.length > 0) {
+              useAppStore.setState({
+                composeQueue: drafts,
+                activeComposeIndex: drafts.length - 1,
+              });
+            }
+            break;
+          }
 
           case "open-thread": {
             // Fetch the thread data and open it

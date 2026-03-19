@@ -4,6 +4,15 @@ import type { EmailThread, ForwardedAttachment } from "@/lib/email/types";
 export type Folder = "inbox" | "sent" | "drafts" | "archive" | "done";
 export type Theme = "dark" | "light" | "system";
 
+export interface QueuedDraft {
+  to: string;
+  cc: string;
+  bcc: string;
+  subject: string;
+  body: string;
+  attachments: ForwardedAttachment[];
+}
+
 interface AppState {
   // Theme
   theme: Theme;
@@ -41,6 +50,13 @@ interface AppState {
   isComposeOpen: boolean;
   openCompose: (opts?: { mode?: "new" | "reply"; draft?: string; subject?: string; to?: string; cc?: string; bcc?: string }) => void;
   closeCompose: () => void;
+
+  // Compose queue (for multiple new emails from CLI)
+  composeQueue: QueuedDraft[];
+  activeComposeIndex: number;
+  setActiveComposeIndex: (index: number) => void;
+  updateQueueEntry: (index: number, draft: QueuedDraft) => void;
+  removeQueueEntry: (index: number) => void;
 
   // Search
   searchQuery: string;
@@ -82,7 +98,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Folder
   activeFolder: "inbox",
   setActiveFolder: (folder) => {
-    set({ activeFolder: folder, selectedIndex: -1, openThread: null, composeDraft: "", composeSubject: "", composeToEmail: null, composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] });
+    set({ activeFolder: folder, selectedIndex: -1, openThread: null });
   },
 
   // Thread list
@@ -102,16 +118,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Open thread
   openThread: null,
   setOpenThread: (thread) => {
-    set({
-      openThread: thread,
-      composeDraft: "",
-      composeSubject: "",
-      composeToEmail: null,
-      composeCc: "",
-      composeBcc: "",
-      composeDraftId: "",
-      composeAttachments: [],
-    });
+    set({ openThread: thread });
   },
 
   // Draft reply
@@ -147,6 +154,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
   closeCompose: () =>
     set({ isComposeOpen: false, composeDraft: "", composeSubject: "", composeToEmail: null, composeCc: "", composeBcc: "", composeDraftId: "", composeAttachments: [] }),
+
+  // Compose queue
+  composeQueue: [],
+  activeComposeIndex: 0,
+  setActiveComposeIndex: (index) => set({ activeComposeIndex: index }),
+  updateQueueEntry: (index, draft) => {
+    const updated = [...get().composeQueue];
+    if (index >= 0 && index < updated.length) {
+      updated[index] = draft;
+      set({ composeQueue: updated });
+    }
+  },
+  removeQueueEntry: (index) => {
+    const { composeQueue, activeComposeIndex } = get();
+    if (composeQueue.length <= 1) {
+      set({ composeQueue: [], activeComposeIndex: 0 });
+      return;
+    }
+    const updated = composeQueue.filter((_, i) => i !== index);
+    let newIndex = activeComposeIndex;
+    if (index < activeComposeIndex) newIndex--;
+    else if (index === activeComposeIndex) newIndex = Math.min(newIndex, updated.length - 1);
+    set({ composeQueue: updated, activeComposeIndex: newIndex });
+  },
 
   // Search
   searchQuery: "",

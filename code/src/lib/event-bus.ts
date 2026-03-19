@@ -17,8 +17,18 @@ export interface CliAttachment {
   size: number;
 }
 
+export interface DraftPayload {
+  body: string;
+  subject?: string;
+  to?: string;
+  cc?: string;
+  bcc?: string;
+  attachments?: CliAttachment[];
+}
+
 export type CliEvent =
   | { type: "set-draft"; body: string; subject?: string; to?: string; cc?: string; bcc?: string; attachments?: CliAttachment[] }
+  | { type: "set-drafts"; drafts: DraftPayload[] }
   | { type: "open-thread"; threadId: string }
   | { type: "move-to-done"; threadId: string }
   | { type: "refresh" }
@@ -27,12 +37,22 @@ export type CliEvent =
 const EVENT_FILE = path.join(process.cwd(), ".cli-events.json");
 
 /**
- * Write an event to the shared file. The SSE poller picks it up.
+ * Write an event to the shared file. Appends to an array so rapid-fire
+ * events (e.g. multiple set-draft calls) are never lost.
  */
 export function emitEvent(event: CliEvent) {
   const entry = { ...event, _ts: Date.now() };
   try {
-    fs.writeFileSync(EVENT_FILE, JSON.stringify(entry), "utf-8");
+    let queue: Array<CliEvent & { _ts: number }> = [];
+    if (fs.existsSync(EVENT_FILE)) {
+      try {
+        const raw = fs.readFileSync(EVENT_FILE, "utf-8");
+        const parsed = JSON.parse(raw);
+        queue = Array.isArray(parsed) ? parsed : [parsed];
+      } catch { /* corrupt file, start fresh */ }
+    }
+    queue.push(entry);
+    fs.writeFileSync(EVENT_FILE, JSON.stringify(queue), "utf-8");
   } catch (err) {
     console.error("[event-bus] Failed to write event file:", err);
     throw err;
@@ -40,16 +60,28 @@ export function emitEvent(event: CliEvent) {
 }
 
 /**
- * Poll the shared file for new events. Returns the event if newer than `since`.
+ * Poll the shared file for new events. Returns all events newer than `since`.
  */
-export function pollEvent(since: number): (CliEvent & { _ts: number }) | null {
+export function pollEvents(since: number): Array<CliEvent & { _ts: number }> {
   try {
-    if (!fs.existsSync(EVENT_FILE)) return null;
+    if (!fs.existsSync(EVENT_FILE)) return [];
     const raw = fs.readFileSync(EVENT_FILE, "utf-8");
-    const entry = JSON.parse(raw);
-    if (entry._ts > since) return entry;
-    return null;
+    const parsed = JSON.parse(raw);
+    const queue: Array<CliEvent & { _ts: number }> = Array.isArray(parsed) ? parsed : [parsed];
+    const results = queue.filter((e) => e._ts > since);
+    // Clean up consumed events
+    if (results.length > 0) {
+      const remaining = queue.filter((e) => e._ts > results[results.length - 1]._ts);
+      fs.writeFileSync(EVENT_FILE, JSON.stringify(remaining), "utf-8");
+    }
+    return results;
   } catch {
-    return null;
+    return [];
   }
+}
+
+/** @deprecated Use pollEvents instead */
+export function pollEvent(since: number): (CliEvent & { _ts: number }) | null {
+  const events = pollEvents(since);
+  return events.length > 0 ? events[events.length - 1] : null;
 }

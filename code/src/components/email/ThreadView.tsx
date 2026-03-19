@@ -337,7 +337,7 @@ const HTML_QUOTE_PATTERNS = [
 ];
 
 // Plain-text quote markers
-const PLAIN_QUOTE_RE = /(?:^|\n)(-{3,}[ \t]*(?:Original Message|Forwarded message)[ \t]*-{3,}|On .{10,}wrote:|From:[ \t]+\S.*\n.*Sent:)/im;
+const PLAIN_QUOTE_RE = /(?:^|\r?\n)(-{3,}[ \t]*(?:Original Message|Forwarded message)[ \t]*-{3,}|On .{10,}wrote:|From:[ \t]+\S.*\r?\n.*Sent:)/im;
 
 function splitQuote(html: string): { main: string; quoted: string | null } {
   const candidates = HTML_QUOTE_PATTERNS

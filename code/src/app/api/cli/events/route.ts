@@ -1,4 +1,4 @@
-import { pollEvent } from "@/lib/event-bus";
+import { pollEvents } from "@/lib/event-bus";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +14,8 @@ export async function GET() {
       // Poll the shared event file every 200ms
       const interval = setInterval(() => {
         try {
-          const event = pollEvent(lastSeen);
-          if (event) {
+          const events = pollEvents(lastSeen);
+          for (const event of events) {
             lastSeen = event._ts;
             const { _ts, ...payload } = event;
             controller.enqueue(

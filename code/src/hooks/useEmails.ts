@@ -28,7 +28,8 @@ export function useThreads() {
     fetcher,
     {
       revalidateOnFocus: true,
-      dedupingInterval: 5000,
+      refreshInterval: 15000,
+      dedupingInterval: 3000,
     }
   );
 
