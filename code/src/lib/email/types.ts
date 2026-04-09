@@ -68,14 +68,23 @@ export interface ForwardedAttachment {
   size: number;
 }
 
+export interface UploadedAttachment {
+  filename: string;
+  mimeType: string;
+  size: number;
+  base64Data: string; // standard base64-encoded file content
+}
+
 export interface SendEmailParams {
   to: EmailAddress[];
   cc?: EmailAddress[];
   bcc?: EmailAddress[];
   subject: string;
   body: string;
-  replyToMessageId?: string;
+  replyToMessageId?: string; // Gmail message ID being replied to (for In-Reply-To/References headers)
+  threadId?: string;          // Gmail thread ID (for Gmail API threading)
   attachments?: ForwardedAttachment[];
+  uploadedAttachments?: UploadedAttachment[];
 }
 
 export interface DraftParams {

@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
-  const { to, cc, bcc, subject, body: emailBody, replyToMessageId, attachments } = body;
+  const { to, cc, bcc, subject, body: emailBody, replyToMessageId, threadId, attachments, uploadedAttachments } = body;
 
   const accessToken = await getValidAccessToken(session.user.id, "google");
   if (!accessToken) {
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   try {
     await emailClient.sendEmail(accessToken, {
       to, cc: ccList.length ? ccList : undefined, bcc, subject,
-      body: emailBody, replyToMessageId, attachments,
+      body: emailBody, replyToMessageId, threadId, attachments, uploadedAttachments,
     });
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,9 +1,11 @@
 "use client";
 
+import { signOut } from "next-auth/react";
 import { useAppStore, type Folder } from "@/store";
 
 const folders: { key: Folder; label: string; shortcut: string }[] = [
   { key: "inbox", label: "Inbox", shortcut: "g i" },
+  { key: "promotions", label: "Promotions", shortcut: "g p" },
   { key: "done", label: "Done", shortcut: "g n" },
   { key: "sent", label: "Sent", shortcut: "g s" },
   { key: "drafts", label: "Drafts", shortcut: "g d" },
@@ -37,12 +39,18 @@ export function Sidebar() {
           </button>
         ))}
       </nav>
-      <div className="px-3 py-2 border-t border-gray-800">
+      <div className="px-3 py-2 border-t border-gray-800 space-y-2">
         <button
           onClick={() => useAppStore.getState().openCompose({ mode: "new" })}
           className="w-full py-2 btn-accent text-sm font-medium rounded-md transition-colors"
         >
           Compose (c)
+        </button>
+        <button
+          onClick={() => signOut({ callbackUrl: "/api/auth/signin" })}
+          className="w-full py-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+        >
+          Sign Out
         </button>
       </div>
     </aside>

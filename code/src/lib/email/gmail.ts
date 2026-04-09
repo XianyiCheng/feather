@@ -33,8 +33,9 @@ function folderToQuery(folder?: string): string {
     case "drafts": return "in:drafts";
     case "archive": return "-in:inbox -in:sent -in:drafts -in:trash -in:spam";
     case "done": return "label:done";
+    case "promotions": return "in:inbox category:promotions";
     case "inbox":
-    default: return "in:inbox";
+    default: return "in:inbox -category:promotions";
   }
 }
 
@@ -130,7 +131,7 @@ function gmailMessageToEmail(message: any, includeBody: boolean): Email {
     isRead: !labelIds.includes("UNREAD"),
     isStarred: labelIds.includes("STARRED"),
     labels: labelIds,
-    hasAttachments: attachments.length > 0,
+    hasAttachments: attachments.length > 0 || message.payload?.mimeType === "multipart/mixed",
     attachments,
   };
 }
@@ -213,10 +214,13 @@ export const gmailClient: EmailClient = {
     // Use messages.list instead of threads.list because Gmail sorts messages
     // by date but threads by thread ID (creation time). This ensures threads
     // with recent replies appear at the top even if the thread started long ago.
+    // Fetch extra messages because a thread's latest message (e.g. SENT) may be
+    // newer than its latest INBOX message, so we need to over-fetch to catch
+    // threads that belong on the first page by thread date.
     const listRes = await gmail.users.messages.list({
       userId: "me",
       q,
-      maxResults: maxResults * 2, // fetch extra since multiple messages may share a thread
+      maxResults: maxResults * 4,
       pageToken: params.pageToken || undefined,
     });
 
@@ -227,7 +231,6 @@ export const gmailClient: EmailClient = {
       if (m.threadId && !seen.has(m.threadId)) {
         seen.add(m.threadId);
         uniqueThreadIds.push(m.threadId);
-        if (uniqueThreadIds.length >= maxResults) break;
       }
     }
 
@@ -246,14 +249,18 @@ export const gmailClient: EmailClient = {
       })
     );
 
-    // Flatten split threads and sort by latest date
-    const threads = threadGroups.flat().sort(
+    // Flatten split threads and sort by latest date, then cap to requested page size
+    const allThreads = threadGroups.flat().sort(
       (a, b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime()
     );
+    const threads = allThreads.slice(0, maxResults);
 
     return {
       threads,
-      nextPageToken: listRes.data.nextPageToken || undefined,
+      // Only pass nextPageToken if there are more threads beyond this page
+      nextPageToken: allThreads.length > maxResults || listRes.data.nextPageToken
+        ? listRes.data.nextPageToken || undefined
+        : undefined,
     };
   },
 
@@ -395,15 +402,72 @@ export const gmailClient: EmailClient = {
     if (params.attachments?.length) {
       attData = await fetchAttachmentData(accessToken, params.attachments);
     }
-    const encodedMessage = buildRawMessage(params, attData);
+    // Merge uploaded attachments (already have base64 data)
+    if (params.uploadedAttachments?.length) {
+      const uploaded = params.uploadedAttachments.map(a => ({
+        filename: a.filename,
+        mimeType: a.mimeType,
+        base64Data: a.base64Data,
+      }));
+      attData = attData ? [...attData, ...uploaded] : uploaded;
+    }
+
+    // Fetch the original message's Message-ID header for In-Reply-To/References
+    let inReplyTo: string | undefined;
+    let references: string | undefined;
+    if (params.replyToMessageId) {
+      try {
+        const origMsg = await gmail.users.messages.get({
+          userId: "me",
+          id: resolveThreadId(params.replyToMessageId),
+          format: "metadata",
+          metadataHeaders: ["Message-ID", "References"],
+        });
+        const origHeaders = origMsg.data.payload?.headers || [];
+        const messageId = origHeaders.find((h: any) => h.name.toLowerCase() === "message-id")?.value;
+        const origRefs = origHeaders.find((h: any) => h.name.toLowerCase() === "references")?.value;
+        if (messageId) {
+          inReplyTo = messageId;
+          references = origRefs ? `${origRefs} ${messageId}` : messageId;
+        }
+      } catch {
+        // Non-fatal — send without threading headers
+      }
+    }
+
+    const encodedMessage = buildRawMessage(params, attData, inReplyTo, references);
+    const threadId = params.threadId
+      ? resolveThreadId(params.threadId)
+      : params.replyToMessageId ? resolveThreadId(params.replyToMessageId) : undefined;
     await gmail.users.messages.send({
       userId: "me",
-      requestBody: { raw: encodedMessage, threadId: params.replyToMessageId || undefined },
+      requestBody: { raw: encodedMessage, threadId },
     });
   },
 
   async searchEmails(accessToken: string, query: string, maxResults = 20): Promise<EmailListResult> {
-    return gmailClient.listEmails(accessToken, { query, maxResults });
+    // Search all mail — don't restrict to a folder
+    const gmail = getGmailClient(accessToken);
+    const listRes = await gmail.users.messages.list({
+      userId: "me",
+      q: query,
+      maxResults,
+    });
+
+    const messageIds = listRes.data.messages || [];
+    const emails = await Promise.all(
+      messageIds.map(async (msg) => {
+        const detail = await gmail.users.messages.get({
+          userId: "me",
+          id: msg.id!,
+          format: "metadata",
+          metadataHeaders: ["From", "To", "Cc", "Subject", "Date"],
+        });
+        return gmailMessageToEmail(detail.data, false);
+      })
+    );
+
+    return { emails, nextPageToken: listRes.data.nextPageToken || undefined };
   },
 
   async createDraft(accessToken: string, params: DraftParams): Promise<GmailDraft> {
@@ -486,7 +550,7 @@ function formatAddr(a: { name: string; email: string }): string {
   return `${encodeRfc2047(a.name)} <${a.email}>`;
 }
 
-function buildRawMessage(params: { to: { name: string; email: string }[]; cc?: { name: string; email: string }[]; bcc?: { name: string; email: string }[]; subject: string; body: string }, attachmentData?: AttachmentData[]): string {
+function buildRawMessage(params: { to: { name: string; email: string }[]; cc?: { name: string; email: string }[]; bcc?: { name: string; email: string }[]; subject: string; body: string }, attachmentData?: AttachmentData[], inReplyTo?: string, references?: string): string {
   const toHeader = params.to.map(formatAddr).join(", ");
   const ccHeader = params.cc?.filter(a => a.email).map(formatAddr).join(", ") || "";
   const bccHeader = params.bcc?.filter(a => a.email).map(formatAddr).join(", ") || "";
@@ -495,6 +559,8 @@ function buildRawMessage(params: { to: { name: string; email: string }[]; cc?: {
   if (ccHeader) raw += `Cc: ${ccHeader}\n`;
   if (bccHeader) raw += `Bcc: ${bccHeader}\n`;
   raw += `Subject: ${encodeRfc2047(params.subject)}\n`;
+  if (inReplyTo) raw += `In-Reply-To: ${inReplyTo}\n`;
+  if (references) raw += `References: ${references}\n`;
   raw += `MIME-Version: 1.0\n`;
 
   if (attachmentData && attachmentData.length > 0) {

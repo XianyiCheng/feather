@@ -31,6 +31,7 @@ export function useKeyboardShortcuts() {
           case "d": s.setActiveFolder("drafts"); break;
           case "a": s.setActiveFolder("archive"); break;
           case "n": s.setActiveFolder("done"); break;
+          case "p": s.setActiveFolder("promotions"); break;
         }
         e.preventDefault();
         return;

@@ -11,7 +11,7 @@ export default function Home() {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/api/auth/signin");
+      router.push("/api/auth/signin?callbackUrl=%2F");
     }
   }, [status, router]);
 

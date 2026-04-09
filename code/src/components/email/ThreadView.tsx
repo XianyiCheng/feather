@@ -364,7 +364,7 @@ const SANITIZE_OPTS = {
     "p", "br", "div", "span", "a", "b", "i", "u", "strong", "em",
     "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li",
     "table", "tr", "td", "th", "thead", "tbody", "img", "blockquote",
-    "pre", "code", "hr", "style", "font", "center", "sup", "sub",
+    "pre", "code", "hr", "font", "center", "sup", "sub",
   ],
   ALLOWED_ATTR: [
     "href", "src", "alt", "style", "class", "width", "height",
@@ -374,19 +374,38 @@ const SANITIZE_OPTS = {
   ],
 };
 
+/** Strip inline color/background styles so dark mode CSS can take effect */
+function stripColorStyles(html: string): string {
+  return html.replace(/\bstyle="([^"]*)"/gi, (match, styles: string) => {
+    const cleaned = styles
+      .split(";")
+      .filter(s => {
+        const prop = s.split(":")[0]?.trim().toLowerCase();
+        return prop !== "color" && prop !== "background-color" && prop !== "background";
+      })
+      .join(";");
+    return cleaned.trim() ? `style="${cleaned}"` : "";
+  });
+}
+
 function EmailBody({ html }: { html: string }) {
   const [showQuoted, setShowQuoted] = useState(false);
+  const isDark = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
 
   // Split on raw HTML first so id/class attrs are intact for pattern matching
   // (DOMPurify strips id attributes, breaking all Outlook quote detection)
   const { main: rawMain, quoted: rawQuoted } = splitQuote(html);
 
-  const sanitize = (s: string) => DOMPurify.sanitize(s, SANITIZE_OPTS);
+  const sanitize = (s: string) => {
+    let sanitized = DOMPurify.sanitize(s, SANITIZE_OPTS);
+    if (isDark) sanitized = stripColorStyles(sanitized);
+    return sanitized;
+  };
   const process = (s: string) => autoLinkUrls(s.replace(/<a\s/gi, '<a target="_blank" rel="noopener noreferrer" '));
   const main = process(sanitize(rawMain));
   const quoted = rawQuoted ? process(sanitize(rawQuoted)) : null;
 
-  const bodyClass = "text-sm text-gray-200 leading-relaxed prose-invert max-w-none [&_a]:text-blue-400 [&_a]:underline [&_a]:cursor-pointer [&_blockquote]:border-l-2 [&_blockquote]:border-gray-700 [&_blockquote]:pl-3 [&_blockquote]:text-gray-400 [&_img]:max-w-full [&_img]:h-auto [&_pre]:bg-gray-800 [&_pre]:p-2 [&_pre]:rounded [&_pre]:overflow-x-auto [&_table]:border-collapse [&_td]:p-1 [&_th]:p-1";
+  const bodyClass = "text-sm text-gray-200 leading-relaxed prose-invert max-w-none email-body-dark [&_a]:text-blue-400 [&_a]:underline [&_a]:cursor-pointer [&_blockquote]:border-l-2 [&_blockquote]:border-gray-700 [&_blockquote]:pl-3 [&_blockquote]:text-gray-400 [&_img]:max-w-full [&_img]:h-auto [&_pre]:bg-gray-800 [&_pre]:p-2 [&_pre]:rounded [&_pre]:overflow-x-auto [&_table]:border-collapse [&_td]:p-1 [&_th]:p-1";
 
   return (
     <div>

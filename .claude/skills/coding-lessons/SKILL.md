@@ -57,8 +57,10 @@ No PATCH existed — added:
 - `PATCH /api/calendar/events/[eventId]` route
 - `DELETE` on the same route
 
-## open-thread → Verify State → set-draft
-**Rule:** Always call `GET /api/cli/state` after `open-thread` and verify `openThread.id` matches the intended thread before calling `set-draft`. Never skip verification.
+## open-thread + set-draft Is Unreliable — Use Gmail Drafts API
+**Problem:** `open-thread` via SSE/polling frequently fails to open the thread in the browser, making subsequent `set-draft` calls silently drop. The pipeline is fragile due to SSE disconnects, HMR, and timing issues.
+
+**Fix:** For replies to threads not currently open, bypass `open-thread` + `set-draft` entirely. Save drafts directly to Gmail via `POST /api/drafts` with `threadId`. Only use `set-draft` when the user already has the thread open in the browser (verified via `GET /api/cli/state`).
 
 ## Attachment Forwarding
 `set-draft` supports `attachments` array:
@@ -91,11 +93,19 @@ Email headers must be ASCII. Use `encodeRfc2047()` for Subject and display names
 ## Thread Matching on Send
 Only set `replyToMessageId`/`threadId` when the draft subject (cleaned) matches the open thread's subject. Different subject = new thread. Otherwise emails get attached to wrong threads.
 
+**Reply threading requires two things:**
+1. `threadId` (Gmail thread ID) — passed to `messages.send` so Gmail threads it on sender's side
+2. `replyToMessageId` (Gmail message ID of the last message) — used to fetch the original `Message-ID` header and set `In-Reply-To`/`References` in the outgoing email so the *recipient's* mail client threads it
+
+`DraftReply.tsx` must pass `openThread.messages[last].id` as `replyToMessageId` (not `openThread.id` which is the thread ID). `buildRawMessage` adds `In-Reply-To` and `References` headers.
+
 ## Multi-Draft Per-Thread Cache
 DraftReply has a `draftCacheRef` (Map<threadId, DraftState>) that saves/restores draft fields on thread switch. A `fieldsRef` tracks current values to avoid stale closures. Navigation actions (`setOpenThread`, `setActiveFolder`, keyboard shortcuts) must NOT clear compose fields — DraftReply's cache handles persistence. Only `clearDraft()`, `closeCompose()`, and `triggerRefresh()` should reset drafts.
 
 ## Gmail threads.list Sort Order
 `threads.list` sorts by thread creation, not latest message. Use `messages.list` (date-sorted) → deduplicate by threadId → fetch threads. See `listThreads()` in `gmail.ts`.
+
+**Over-fetch to avoid missed threads:** `messages.list` with a folder query (e.g. `in:inbox`) only returns messages with that label. A thread's latest message may have a different label (e.g. SENT), making the thread appear newer by thread date than by its matching-message date. Fetch `maxResults * 4` messages, collect ALL unique threads (don't cap during dedup), then sort by thread `latestDate` and slice to page size.
 
 ## Subject-Based Thread Splitting
 Gmail threads messages by References/In-Reply-To headers regardless of subject changes. `splitThreadBySubject()` creates virtual thread IDs (`realThreadId:firstMessageId`). All thread actions resolve via `resolveThreadId()`. `cleanSubject()` strips `[*EXTERNAL*]` tags.
@@ -108,5 +118,45 @@ Gmail threads messages by References/In-Reply-To headers regardless of subject c
 
 **Fix:** For batch new emails, save each directly to Gmail via `POST /api/drafts` (requires session token). User views them in the Drafts folder (`g d`). `set-draft` is only for single drafts or replies to an open thread.
 
+## set-draft Must Not Use Compose Queue
+**Problem:** Routing single `set-draft` events into `composeQueue` (for new compose with `to` field) broke the compose box — the queue effect loaded the draft but the compose fields weren't set, so the draft box appeared empty.
+
+**Fix:** `set-draft` always sets compose fields directly (`composeDraft`, `composeToEmail`, etc.). Only `set-drafts` (plural, batch action) populates the `composeQueue`. Single new emails work via the normal compose field pipeline.
+
 ## Event Bus Supports Queued Events
-`emitEvent()` now appends to a JSON array in `.cli-events.json` instead of overwriting. `pollEvents()` returns all events newer than `since` and cleans up consumed events. This prevents rapid-fire CLI calls from dropping events. The SSE endpoint delivers all queued events per poll cycle.
+`emitEvent()` now appends to a JSON array in `.cli-events.json` instead of overwriting. `pollEvents()` returns all events newer than `since` (non-destructive read; events expire after 30s). This prevents rapid-fire CLI calls from dropping events. The SSE endpoint delivers all queued events per poll cycle.
+
+## Search API Searches All Mail
+**Problem:** `GET /api/emails/search?q=...` only searched inbox because `searchEmails()` called `listEmails()` which defaulted `folderToQuery()` to `"in:inbox -category:promotions"`. Emails in sent, archive, or other labels were invisible to search.
+
+**Fix:** `searchEmails()` now queries Gmail directly with no folder restriction (`q: query` only). The `folderToQuery()` default is only for folder-based listing, not search.
+
+## Send Button Fails with Split Thread IDs
+**Problem:** Sending a reply from the drafts folder fails because `openThread.id` can be a split thread ID (`realThreadId:firstMessageId`), which the Gmail API rejects as an invalid `threadId`.
+
+**Fix:** `sendEmail()` in `gmail.ts` now passes `replyToMessageId` through `resolveThreadId()` before sending to Gmail.
+
+## Drafts Folder: Show Thread for Reply Drafts
+**Problem:** Opening a reply draft in the drafts folder showed only the compose box with no thread context — user couldn't see what they were replying to.
+
+**Fix:** `isDraftOpen` in `AppShell.tsx` now checks `messageCount <= 1`. Reply drafts (thread has >1 message) render with `ThreadView` + `DraftReply` like normal folders. Standalone drafts (1 message) still get full-height compose.
+
+## set-draft Body: Use \n, Not HTML
+**Problem:** `set-draft` body is rendered in a `<textarea>` (plain text). Sending `<br>` tags shows them as literal text instead of line breaks.
+
+**Fix:** `handleCliEvent` in `useCliEvents.ts` now auto-converts `<br>` → `\n` and strips other HTML tags before setting `composeDraft`. Use `\n` (not `<br>`) in set-draft bodies. `<br>` is for `POST /api/drafts` (Gmail API) only.
+
+## SWR Cache Must Include refreshCounter
+**Problem:** CLI `refresh` action incremented `refreshCounter` in the store and cleared `openThread`, but the SWR key in `useThreads` didn't include it. Thread list stayed stale after refresh because SWR served its cached response.
+
+**Fix:** Subscribe to `refreshCounter` in `useThreads` and append `&_r=${refreshCounter}` to the SWR key. Any store state that should trigger a refetch must be part of the SWR key.
+
+## NextAuth Re-Auth Doesn't Update Tokens
+**Problem:** When user re-signs in with Google, NextAuth PrismaAdapter only calls `linkAccount` for NEW accounts. Existing accounts keep stale tokens. If Google revokes the refresh token (e.g. after `prompt: "consent"`), the stored token becomes permanently invalid — token refresh returns `invalid_grant`.
+
+**Fix:** Added `signIn` callback in `auth.ts` that calls `prisma.account.updateMany()` to overwrite `access_token`, `refresh_token`, and `expires_at` on every sign-in. If the account doesn't exist yet (first sign-in), the update is a no-op and the adapter creates it normally.
+
+## SSE + Polling Fallback for CLI Events
+**Problem:** SSE connection drops during Next.js HMR (hot reload), causing `set-draft` and other CLI events to be silently lost. Browser requires hard refresh to reconnect.
+
+**Fix:** `useCliEvents` now has dual channels: SSE (primary) + REST polling fallback (`GET /api/cli/poll?since=<ts>`) every 2 seconds. Polling only activates when SSE appears unhealthy (`readyState !== OPEN`). Events are kept in the file for 30s so both channels can read them independently.

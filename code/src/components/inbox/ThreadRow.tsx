@@ -95,13 +95,18 @@ export function ThreadRow({
           isSelected
             ? "bg-[var(--btn)] border-l-2 border-l-[var(--btn-hover)]"
             : "hover:bg-gray-800/30 border-l-2 border-l-transparent"
-        } ${!thread.isRead ? "font-medium" : ""}`}
+        } ${!thread.isRead ? "font-bold" : ""}`}
       >
         <div className="flex items-center justify-between gap-2">
-          <span className={`text-sm truncate ${isSelected ? "text-[var(--btn-text)]" : !thread.isRead ? "text-white" : "text-gray-300"}`}>
+          <span className={`text-sm truncate ${isSelected ? "text-[var(--btn-text)]" : !thread.isRead ? "text-white font-bold" : "text-gray-300"}`}>
             {participantNames(thread, activeFolder === "drafts" || activeFolder === "sent")}
           </span>
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {thread.hasAttachments && (
+              <svg className={`w-3.5 h-3.5 ${isSelected ? "text-[var(--btn-text)] opacity-70" : "text-gray-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+            )}
             {thread.messageCount > 1 && (
               <span className={`text-xs px-1.5 rounded ${isSelected ? "text-[var(--btn-text)] bg-[var(--btn-hover)]" : "text-gray-500 bg-gray-800"}`}>
                 {thread.messageCount}
@@ -112,7 +117,7 @@ export function ThreadRow({
             </span>
           </div>
         </div>
-        <div className={`text-sm truncate mt-0.5 ${isSelected ? "text-[var(--btn-text)]" : !thread.isRead ? "text-gray-200" : "text-gray-400"}`}>
+        <div className={`text-sm truncate mt-0.5 ${isSelected ? "text-[var(--btn-text)]" : !thread.isRead ? "text-white" : "text-gray-400"}`}>
           {thread.subject}
         </div>
         <div className={`text-xs truncate mt-0.5 ${isSelected ? "text-[var(--btn-text)] opacity-60" : "text-gray-600"}`}>

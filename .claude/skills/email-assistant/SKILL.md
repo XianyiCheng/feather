@@ -9,27 +9,46 @@ Read `assistant_agent/profile.md` for the user's identity, email tone, and draft
 
 ## Core Workflow
 
-**Reply to current email:**
+**Reply to current email (thread already open in browser):**
 1. `GET /api/cli/state` — read `openThread` and its `messages`
 2. Compose reply using style from `assistant_agent/profile.md`
-3. `POST /api/cli` → `set-draft` with the body
+3. `POST /api/cli` → `set-draft` with the body (works because thread is already open)
 
-**Reply to a specific thread:**
-1. `GET /api/emails?folder=inbox` — find the thread, note its `id`
-2. `POST /api/cli` → `open-thread` with the `threadId`
-3. `GET /api/cli/state` — verify the thread is open
-4. `POST /api/cli` → `set-draft` with the reply
+**Reply to a specific thread (not currently open):**
+Do NOT use `open-thread` + `set-draft` — the SSE pipeline is unreliable. Instead, save the draft directly to Gmail:
+1. Search for the thread: `GET /api/emails/search?q=...`
+2. Read the thread: `GET /api/emails/{threadId}` — note the subject and threadId
+3. Save draft via `POST /api/drafts` with `threadId`, `to`, `cc`, and **`subject` prefixed with `Re:`** matching the original thread subject
+4. Tell user to press `g d` to find it in Drafts, or click the thread
 
-**New email (no thread):**
+**IMPORTANT:** When the user asks to reply/follow up on an existing conversation, ALWAYS find the existing thread and reply within it. Never create a standalone new email — use the thread's `threadId` and `Re: <original subject>` to keep it in the same thread.
+
+**New email (no thread, single):**
 1. Look up recipient in `assistant_agent/contacts.md` if needed
 2. `POST /api/cli` → `set-draft` with `body`, `subject`, and `to`
 
 **Multiple new emails (batch):**
-Do NOT use multiple `set-draft` calls — each one overwrites the previous. Instead, save each draft directly to Gmail via `POST /api/drafts` (requires session token), then tell the user to press `g d` to view them in the Drafts folder.
+Do NOT use multiple `set-draft` calls — each one overwrites the previous. Save each directly to Gmail via `POST /api/drafts`.
+
+## Saving Gmail Drafts Directly (preferred for replies)
 ```python
-curl -s -X POST -b "authjs.session-token=$TOKEN" http://localhost:3000/api/drafts \
-  -H "Content-Type: application/json" \
-  -d '{"to":[{"name":"Name","email":"x@y.com"}],"cc":[...],"subject":"...","body":"<html>"}'
+TOKEN = subprocess.run(['sqlite3', '/path/to/dev.db',
+    'SELECT sessionToken FROM Session ORDER BY expires DESC LIMIT 1;'],
+    capture_output=True, text=True).stdout.strip()
+
+payload = json.dumps({
+    'to': [{'name': 'Name', 'email': 'x@y.com'}],
+    'cc': [{'name': '', 'email': 'YOUR_PRIMARY_EMAIL@example.com'}],
+    'subject': 'Re: Original Subject',
+    'body': 'Reply body with <br> for newlines',
+    'threadId': 'gmail-thread-id'  # links draft to the thread
+})
+
+subprocess.run(['curl', '-s', '-X', 'POST',
+    '-b', f'authjs.session-token={TOKEN}',
+    'http://localhost:3000/api/drafts',
+    '-H', 'Content-Type: application/json',
+    '-d', payload], capture_output=True, text=True)
 ```
 Body must use `<br>` for newlines (HTML format). The `to`/`cc`/`bcc` fields are arrays of `{name, email}` objects.
 
@@ -41,9 +60,10 @@ printf '{"action":"set-draft","body":"Hello\\nWorld","subject":"Hi","to":"x@y.co
 Use `printf` with double-escaped `\\n` — never `curl -d '...\n...'` (literal `\n` breaks JSON parsing).
 
 ## Critical Rules
-- **NEVER use `/api/emails/send`** — always `set-draft` so user reviews before sending
+- **NEVER use `/api/emails/send`** — always `set-draft` or `POST /api/drafts` so user reviews before sending
 - **Always CC YOUR_PRIMARY_EMAIL@example.com** on all outgoing email
-- **open-thread → verify state → set-draft** — never skip the `GET /api/cli/state` verification step
+- **For replies to threads not currently open:** use `POST /api/drafts` with `threadId` — do NOT rely on `open-thread` + `set-draft`
+- **`set-draft` only works when the thread is already open** in the browser (user clicked on it)
 - Clicking a folder clears the draft box — warn the user if there's an unsaved draft
 
 ## Session Token (for direct curl calls to email/calendar endpoints)

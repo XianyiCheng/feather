@@ -60,7 +60,7 @@ export function emitEvent(event: CliEvent) {
 }
 
 /**
- * Poll the shared file for new events. Returns all events newer than `since`.
+ * Read events newer than `since`. Does NOT remove them — events expire by age.
  */
 export function pollEvents(since: number): Array<CliEvent & { _ts: number }> {
   try {
@@ -68,20 +68,14 @@ export function pollEvents(since: number): Array<CliEvent & { _ts: number }> {
     const raw = fs.readFileSync(EVENT_FILE, "utf-8");
     const parsed = JSON.parse(raw);
     const queue: Array<CliEvent & { _ts: number }> = Array.isArray(parsed) ? parsed : [parsed];
-    const results = queue.filter((e) => e._ts > since);
-    // Clean up consumed events
-    if (results.length > 0) {
-      const remaining = queue.filter((e) => e._ts > results[results.length - 1]._ts);
-      fs.writeFileSync(EVENT_FILE, JSON.stringify(remaining), "utf-8");
+    // Prune events older than 30 seconds to prevent unbounded growth
+    const cutoff = Date.now() - 30_000;
+    const live = queue.filter((e) => e._ts > cutoff);
+    if (live.length !== queue.length) {
+      fs.writeFileSync(EVENT_FILE, JSON.stringify(live), "utf-8");
     }
-    return results;
+    return live.filter((e) => e._ts > since);
   } catch {
     return [];
   }
-}
-
-/** @deprecated Use pollEvents instead */
-export function pollEvent(since: number): (CliEvent & { _ts: number }) | null {
-  const events = pollEvents(since);
-  return events.length > 0 ? events[events.length - 1] : null;
 }

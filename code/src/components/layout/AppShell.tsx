@@ -31,12 +31,14 @@ export function AppShell() {
   useTheme();
   useStateSync();
 
-  const { threads: fetchedThreads, isLoading, loadingMore, hasMore, loadMore } = useThreads();
+  const { threads: fetchedThreads, isLoading, loadingMore, hasMore, loadMore, error } = useThreads();
   const openThread = useAppStore((s) => s.openThread);
   const activeFolder = useAppStore((s) => s.activeFolder);
   const isComposeOpen = useAppStore((s) => s.isComposeOpen);
   const showShortcutHelp = useAppStore((s) => s.showShortcutHelp);
-  const isDraftOpen = activeFolder === "drafts" && !!openThread;
+  // In drafts folder, show full-height compose only for standalone drafts (1 message).
+  // Reply drafts (>1 message) show thread view + compose like normal folders.
+  const isDraftOpen = activeFolder === "drafts" && !!openThread && (openThread.messageCount || openThread.messages?.length || 0) <= 1;
 
   useEffect(() => {
     const { discardedThreadIds, setThreads } = useAppStore.getState();
@@ -98,8 +100,21 @@ export function AppShell() {
     []
   );
 
+  const isAuthError = error?.status === 403 || error?.status === 401;
+
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100">
+      {isAuthError && (
+        <div className="px-4 py-2 bg-yellow-900/80 border-b border-yellow-700 text-yellow-200 text-sm flex items-center justify-between">
+          <span>Google session expired. Please sign in again to refresh your token.</span>
+          <a
+            href="/api/auth/signin?callbackUrl=/"
+            className="ml-4 px-3 py-1 bg-yellow-700 hover:bg-yellow-600 rounded text-white text-xs font-medium"
+          >
+            Sign In
+          </a>
+        </div>
+      )}
       <div ref={containerRef} className="flex-1 flex min-h-0">
         {/* Col 1: Sidebar (fixed width) */}
         <div className="w-48 flex-shrink-0 h-full overflow-hidden">

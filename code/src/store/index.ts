@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { EmailThread, ForwardedAttachment } from "@/lib/email/types";
 
-export type Folder = "inbox" | "sent" | "drafts" | "archive" | "done";
+export type Folder = "inbox" | "sent" | "drafts" | "archive" | "done" | "promotions";
 export type Theme = "dark" | "light" | "system";
 
 export interface QueuedDraft {

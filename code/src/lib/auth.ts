@@ -12,7 +12,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       authorization: {
         params: {
           scope:
-            "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.readonly",
+            "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents",
+          // Note: drive + documents scopes granted as of 2026-04-06 sign-in
           access_type: "offline",
           prompt: "consent",
         },
@@ -23,6 +24,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     strategy: "database",
   },
   callbacks: {
+    // Update stored tokens on every sign-in so a revoked refresh token
+    // gets replaced with the fresh one from the new OAuth flow.
+    async signIn({ user, account }) {
+      if (account?.provider === "google" && user.id) {
+        try {
+          await prisma.account.updateMany({
+            where: { userId: user.id, provider: "google" },
+            data: {
+              access_token: account.access_token,
+              refresh_token: account.refresh_token ?? undefined,
+              expires_at: account.expires_at,
+            },
+          });
+        } catch {
+          // First sign-in — account doesn't exist yet, adapter will create it
+        }
+      }
+      return true;
+    },
     async session({ session, user }) {
       session.user.id = user.id;
       return session;

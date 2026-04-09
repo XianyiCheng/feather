@@ -6,11 +6,26 @@ import type { ThreadListResult, EmailThread } from "@/lib/email/types";
 const EMPTY_THREADS: EmailThread[] = [];
 const PAGE_SIZE = 10;
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (res.status === 403) {
+    const body = await res.json().catch(() => ({}));
+    const err = new Error(body?.error || "Forbidden");
+    (err as any).status = 403;
+    throw err;
+  }
+  if (res.status === 401) {
+    const err = new Error("Unauthorized");
+    (err as any).status = 401;
+    throw err;
+  }
+  return res.json();
+};
 
 export function useThreads() {
   const activeFolder = useAppStore((s) => s.activeFolder);
   const searchQuery = useAppStore((s) => s.searchQuery);
+  const refreshCounter = useAppStore((s) => s.refreshCounter);
 
   // Debounce search query so we don't fire on every keystroke
   const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
@@ -19,9 +34,10 @@ export function useThreads() {
     return () => clearTimeout(t);
   }, [searchQuery]);
 
+  // Include refreshCounter in the SWR key so CLI refresh busts the cache
   const swrKey = debouncedQuery
-    ? `/api/emails?folder=${activeFolder}&maxResults=${PAGE_SIZE}&q=${encodeURIComponent(debouncedQuery)}`
-    : `/api/emails?folder=${activeFolder}&maxResults=${PAGE_SIZE}`;
+    ? `/api/emails?folder=${activeFolder}&maxResults=${PAGE_SIZE}&q=${encodeURIComponent(debouncedQuery)}&_r=${refreshCounter}`
+    : `/api/emails?folder=${activeFolder}&maxResults=${PAGE_SIZE}&_r=${refreshCounter}`;
 
   const { data, error, isLoading, mutate } = useSWR<ThreadListResult>(
     swrKey,
@@ -48,19 +64,31 @@ export function useThreads() {
     setNextPageToken(undefined);
   }
 
-  // Sync nextPageToken from initial SWR data
+  // Sync nextPageToken from initial SWR data, and clear stale extra threads
+  // when the first page changes (new emails arrived, pagination shifted)
+  const prevFirstPageIds = useRef<string>("");
   useEffect(() => {
-    if (data?.nextPageToken) {
-      setNextPageToken(data.nextPageToken);
+    if (!data) return;
+    if (data.nextPageToken) setNextPageToken(data.nextPageToken);
+    const ids = (data.threads || []).map((t) => t.id).join(",");
+    if (prevFirstPageIds.current && ids !== prevFirstPageIds.current && extraThreads.length > 0) {
+      setExtraThreads([]);
     }
-  }, [data?.nextPageToken]);
+    prevFirstPageIds.current = ids;
+  }, [data]);
 
   const baseThreads = useMemo(() => data?.threads ?? EMPTY_THREADS, [data?.threads]);
   const threads = useMemo(() => {
-    if (extraThreads.length === 0) return baseThreads;
-    const seen = new Set(baseThreads.map((t) => t.id));
-    const unique = extraThreads.filter((t) => !seen.has(t.id));
-    return [...baseThreads, ...unique];
+    // Deduplicate all threads by ID to prevent React key collisions
+    // (can happen with virtual thread IDs from subject splitting + extraThreads overlap)
+    const seen = new Set<string>();
+    const dedup = (list: EmailThread[]) => list.filter((t) => {
+      if (seen.has(t.id)) return false;
+      seen.add(t.id);
+      return true;
+    });
+    if (extraThreads.length === 0) return dedup(baseThreads);
+    return dedup([...baseThreads, ...extraThreads]);
   }, [baseThreads, extraThreads]);
 
   const hasMore = !!nextPageToken;

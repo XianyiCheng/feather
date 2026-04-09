@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSWRConfig } from "swr";
 import { useAppStore } from "@/store";
-import type { ForwardedAttachment } from "@/lib/email/types";
+import type { ForwardedAttachment, UploadedAttachment } from "@/lib/email/types";
 
 function parseAddrs(raw: string) {
   if (!raw.trim()) return [];
@@ -98,6 +98,8 @@ export function DraftReply() {
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [draftId, setDraftId] = useState("");
   const [attachments, setAttachments] = useState<ForwardedAttachment[]>([]);
+  const [uploadedAttachments, setUploadedAttachments] = useState<UploadedAttachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [replyAll, setReplyAll] = useState(false);
 
   const prevThreadIdRef = useRef<string | null>(null);
@@ -314,6 +316,26 @@ export function DraftReply() {
     return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
   }, [to, cc, bcc, subject, body, attachments]);
 
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(",")[1]; // strip data:...;base64, prefix
+        setUploadedAttachments(prev => [...prev, {
+          filename: file.name,
+          mimeType: file.type || "application/octet-stream",
+          size: file.size,
+          base64Data: base64,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    // Reset input so the same file can be re-selected
+    e.target.value = "";
+  }
+
   async function handleSend() {
     if (!to.trim() || !body.trim()) return;
     setSending(true);
@@ -330,6 +352,11 @@ export function DraftReply() {
       const isReply = openThread &&
         stripPrefixes(subject) === stripPrefixes(openThread.subject);
 
+      // Get the last message ID for In-Reply-To header, and thread ID for Gmail threading
+      const lastMsg = isReply && openThread?.messages?.length
+        ? openThread.messages[openThread.messages.length - 1]
+        : undefined;
+
       const res = await fetch("/api/emails/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -339,8 +366,10 @@ export function DraftReply() {
           bcc: bccAddrs.length ? bccAddrs : undefined,
           subject: subject.trim(),
           body: body.replace(/\n/g, "<br>"),
-          replyToMessageId: isReply ? openThread?.id : undefined,
+          replyToMessageId: lastMsg?.id,
+          threadId: isReply ? openThread?.id : undefined,
           attachments: attachments.length ? attachments : undefined,
+          uploadedAttachments: uploadedAttachments.length ? uploadedAttachments : undefined,
         }),
       });
       if (!res.ok) throw new Error("Send failed");
@@ -357,7 +386,7 @@ export function DraftReply() {
       if (!sentId && currentQueue.length > 0) {
         handleRemoveCompose(useAppStore.getState().activeComposeIndex);
       }
-      setBody(""); setTo(""); setCc(""); setBcc(""); setSubject(""); setDraftId(""); setAttachments([]);
+      setBody(""); setTo(""); setCc(""); setBcc(""); setSubject(""); setDraftId(""); setAttachments([]); setUploadedAttachments([]);
       // If in drafts folder, remove the thread from the list and close it
       const currentFolder = useAppStore.getState().activeFolder;
       const sentThread = useAppStore.getState().openThread;
@@ -569,11 +598,11 @@ export function DraftReply() {
         className="flex-1 w-full px-3 py-2 bg-transparent text-sm text-gray-200 resize-none outline-none min-h-0"
         id="draft-body" placeholder="Write your reply here, or use Claude Code to draft..." />
 
-      {attachments.length > 0 && (
+      {(attachments.length > 0 || uploadedAttachments.length > 0) && (
         <div className="px-3 py-1.5 border-t border-gray-800/50 flex-shrink-0">
           <div className="flex flex-wrap gap-1.5">
             {attachments.map((att, i) => (
-              <span key={`${att.id}-${i}`} className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-800 rounded text-xs text-gray-300 border border-gray-700">
+              <span key={`fwd-${att.id}-${i}`} className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-800 rounded text-xs text-gray-300 border border-gray-700">
                 <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                 </svg>
@@ -581,6 +610,24 @@ export function DraftReply() {
                 <span className="text-gray-500">({formatSize(att.size)})</span>
                 <button
                   onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
+                  className="ml-0.5 text-gray-500 hover:text-red-400 transition-colors"
+                  title="Remove attachment"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </span>
+            ))}
+            {uploadedAttachments.map((att, i) => (
+              <span key={`upl-${att.filename}-${i}`} className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-800 rounded text-xs text-gray-300 border border-blue-700/50">
+                <svg className="w-3 h-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                <span className="max-w-[150px] truncate">{att.filename}</span>
+                <span className="text-gray-500">({formatSize(att.size)})</span>
+                <button
+                  onClick={() => setUploadedAttachments(prev => prev.filter((_, idx) => idx !== i))}
                   className="ml-0.5 text-gray-500 hover:text-red-400 transition-colors"
                   title="Remove attachment"
                 >
@@ -608,7 +655,7 @@ export function DraftReply() {
             const idToDelete = draftId;
 
             // Clear all fields
-            setTo(""); setCc(""); setBcc(""); setSubject(""); setBody(""); setDraftId(""); setAttachments([]);
+            setTo(""); setCc(""); setBcc(""); setSubject(""); setBody(""); setDraftId(""); setAttachments([]); setUploadedAttachments([]);
             setShowCcBcc(false); setStatus("");
             draftIdRef.current = "";
 
@@ -624,6 +671,22 @@ export function DraftReply() {
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="p-1.5 text-gray-400 hover:text-gray-200 transition-colors"
+          title="Attach files"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
           </svg>
         </button>
         <button onClick={handleSend} disabled={sending || !body.trim() || !to.trim()}
