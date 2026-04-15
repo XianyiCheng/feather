@@ -40,6 +40,8 @@ export function ThreadView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "markAsRead" }),
       }).catch(console.error);
+      // Track this as locally marked read so SWR revalidation doesn't revert it
+      useAppStore.getState().markThreadRead(thread.id);
       // Update the thread list so the bold/unread styling clears immediately
       const threads = useAppStore.getState().threads;
       useAppStore.setState({
@@ -52,9 +54,14 @@ export function ThreadView() {
   }, [thread?.id, thread?.isRead]);
 
   // Update the open thread data when full content loads (without resetting draft)
+  // Preserve local isRead override — Gmail may not have processed markAsRead yet
   useEffect(() => {
     if (fullThread) {
-      useAppStore.setState({ openThread: fullThread });
+      const current = useAppStore.getState().openThread;
+      const merged = current?.isRead && !fullThread.isRead
+        ? { ...fullThread, isRead: true }
+        : fullThread;
+      useAppStore.setState({ openThread: merged });
     }
   }, [fullThread]);
 

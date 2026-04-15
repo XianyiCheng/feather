@@ -41,8 +41,11 @@ export function AppShell() {
   const isDraftOpen = activeFolder === "drafts" && !!openThread && (openThread.messageCount || openThread.messages?.length || 0) <= 1;
 
   useEffect(() => {
-    const { discardedThreadIds, setThreads } = useAppStore.getState();
-    setThreads(fetchedThreads.filter((t) => !discardedThreadIds.has(t.id)));
+    const { discardedThreadIds, markedReadIds, setThreads } = useAppStore.getState();
+    const threads = fetchedThreads
+      .filter((t) => !discardedThreadIds.has(t.id))
+      .map((t) => markedReadIds.has(t.id) ? { ...t, isRead: true } : t);
+    setThreads(threads);
   }, [fetchedThreads]);
 
   // Thread list width in px (resizable)

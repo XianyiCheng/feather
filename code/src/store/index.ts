@@ -70,6 +70,10 @@ interface AppState {
   discardedThreadIds: Set<string>;
   discardThread: (id: string) => void;
 
+  // Threads optimistically marked as read — prevents SWR revalidation from reverting to unread
+  markedReadIds: Set<string>;
+  markThreadRead: (id: string) => void;
+
   // CLI push event counter — incremented to trigger refetches
   refreshCounter: number;
   triggerRefresh: () => void;
@@ -215,6 +219,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         const next = new Set(state.discardedThreadIds);
         next.delete(id);
         return { discardedThreadIds: next };
+      });
+    }, 30_000);
+  },
+
+  markedReadIds: new Set<string>(),
+  markThreadRead: (id) => {
+    set((state) => ({ markedReadIds: new Set([...state.markedReadIds, id]) }));
+    setTimeout(() => {
+      set((state) => {
+        const next = new Set(state.markedReadIds);
+        next.delete(id);
+        return { markedReadIds: next };
       });
     }, 30_000);
   },
