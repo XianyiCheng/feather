@@ -4,6 +4,8 @@ A browser-based Gmail client with an integrated AI assistant, built for a keyboa
 
 ![Stack](https://img.shields.io/badge/Next.js_16-black?logo=next.js) ![React](https://img.shields.io/badge/React_19-blue?logo=react) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white) ![Tailwind](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white)
 
+> **Best with [Claude Code](https://claude.ai/claude-code):** Open a terminal in this project and run `claude`. Then just say *"check my unread emails"*, *"reply to John's email"*, *"add this to my calendar"*, or *"create a Google Doc for the meeting notes"*. Claude reads your inbox, drafts emails in your voice, manages your calendar, and pushes everything to the browser for you to review. See [Using with Claude Code](#using-with-claude-code) for more.
+
 ## What is this?
 
 Email Helper is a local-first email client that connects to your Gmail account and gives you:
