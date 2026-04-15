@@ -4,17 +4,38 @@ Browser-based Gmail client at `http://localhost:3000`. Controls Gmail and Google
 
 **Start dev server:** `cd /Users/xianyi/ai_projects/email_helper/code && npm run dev`
 
+## User Data (Private — Not in Git)
+
+All user-specific files live in `user_data/`. This folder is gitignored and **must never be committed**. It contains:
+
+| File | Purpose |
+|------|---------|
+| `profile.md` | Your name, role, email style, tone preferences |
+| `contacts.md` | Contact list (names, emails, roles) for address lookup |
+| `instructions.md` | AI behavior rules, email drafting preferences, calendar rules |
+| `client_secret.json` | Google OAuth credentials |
+| `token.json` | Google API token (auto-generated) |
+
+**First-time setup:** Copy from `user_data.example/` and fill in your info:
+```bash
+cp -r user_data.example/ user_data/
+# Edit profile.md, contacts.md, instructions.md with your info
+# Add your Google OAuth client_secret.json
+```
+
+Symlinks in `assistant_agent/` point to `user_data/` so all existing code paths work.
+
 ## Skills (auto-loaded when relevant)
 
-- **`email-assistant`** — drafting rules, workflow, critical rules. Reads `assistant_agent/profile.md` for identity/tone.
-- **`contacts`** — looks up email addresses. Reads `assistant_agent/contacts.md`.
+- **`email-assistant`** — drafting rules, workflow, critical rules. Reads `user_data/profile.md` for identity/tone.
+- **`contacts`** — looks up email addresses. Reads `user_data/contacts.md`.
 - **`coding-lessons`** — dev gotchas and fixes. Read before making code changes.
 
 ## MANDATORY: Read Before Acting
 
 **You MUST complete these reads before doing anything else. No exceptions.**
 
-- **Before drafting/sending ANY email:** read `assistant_agent/instructions.md`, then load the `email-assistant` skill.
+- **Before drafting/sending ANY email:** read `user_data/instructions.md` (via `assistant_agent/instructions.md`), then load the `email-assistant` skill.
 - **Before making ANY code change:** load the `coding-lessons` skill and read it fully. It contains documented gotchas and fixes that prevent repeat mistakes.
 - **Before ANY task:** scan your memory files in `~/.claude/projects/-Users-xianyi-ai-projects-email-helper/memory/MEMORY.md` for relevant feedback.
 
@@ -26,9 +47,10 @@ Skipping these reads has repeatedly caused wasted round-trips rediscovering know
 - **Verify results after creating** — after creating a draft, event, or any resource, fetch it back to confirm it's correct. Don't trust creation responses alone.
 - **Keep answers concise** — short and direct, no unnecessary explanation.
 - **NEVER use `/api/emails/send`** — user must always review and click Send themselves.
-- **Always CC YOUR_PRIMARY_EMAIL@example.com** on all outgoing email.
+- **Always CC the user's primary email** (from `user_data/profile.md`) on all outgoing email.
 - **Use python3 subprocess for API calls** — never use `curl -d "$(python3 -c "...")"`. The nested quoting always breaks. Use the python3 + `subprocess.run(['curl', ...])` pattern.
 - **Summarize new takeaways** into `assistant_agent/` or `coding_agent/` when something genuinely reusable is discovered.
+- **Never commit `user_data/`** — it contains private information (emails, contacts, OAuth tokens). Only `user_data.example/` templates belong in git.
 
 ## API Reference
 

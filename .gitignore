@@ -2,9 +2,15 @@
 .cli-events.json
 code/.cli-events.json
 
-# Google OAuth credentials (never commit)
+# User-specific data (private — never commit)
+user_data/
+
+# Legacy locations / symlinks to user_data (never commit)
 assistant_agent/token.json
 assistant_agent/client_secret.json
+assistant_agent/profile.md
+assistant_agent/contacts.md
+assistant_agent/instructions.md
 
 # dependencies
 code/node_modules

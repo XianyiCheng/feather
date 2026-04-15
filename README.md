@@ -74,7 +74,22 @@ npm install
 5. Add `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI
 6. Copy the Client ID and Client Secret
 
-### 3. Configure environment
+### 3. Set up your user data (private)
+
+The `user_data/` folder holds your personal configuration. It is **gitignored** and never shared. Copy the templates and fill in your info:
+
+```bash
+cp -r user_data.example/ user_data/
+```
+
+Then edit:
+- **`user_data/profile.md`** -- your name, role, email tone/style preferences
+- **`user_data/contacts.md`** -- your contacts (names and email addresses)
+- **`user_data/instructions.md`** -- rules for the AI (drafting style, calendar preferences, etc.)
+
+If you want Google Docs integration, also place your `client_secret.json` in `user_data/`.
+
+### 4. Configure environment
 
 ```bash
 cp .env.example .env.local  # or create .env.local manually
@@ -89,14 +104,14 @@ NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="run: openssl rand -base64 32"
 ```
 
-### 4. Set up the database
+### 5. Set up the database
 
 ```bash
 npx prisma generate
 npx prisma db push
 ```
 
-### 5. Run
+### 6. Run
 
 ```bash
 npm run dev
@@ -189,19 +204,28 @@ All endpoints at `http://localhost:3000`. Email/calendar/draft endpoints require
 
 ```
 email_helper/
-  assistant_agent/       # AI assistant context (profile, contacts, drafting rules)
-  coding_agent/          # Dev lessons learned, coding gotchas
-  .claude/skills/        # Claude Code skill definitions
-  CLAUDE.md              # Project instructions for Claude Code
-  code/                  # Next.js application
+  user_data/              # YOUR private data (gitignored, never committed)
+    profile.md            #   Name, role, email style
+    contacts.md           #   Contact list
+    instructions.md       #   AI behavior rules
+    client_secret.json    #   Google OAuth credentials
+    token.json            #   Google API token (auto-generated)
+  user_data.example/      # Templates for new users (committed)
+  assistant_agent/        # AI assistant scripts + symlinks to user_data/
+  coding_agent/           # Dev lessons learned, coding gotchas
+  .claude/skills/         # Claude Code skill definitions
+  CLAUDE.md               # Project instructions for Claude Code
+  code/                   # Next.js application
     src/
-      app/api/           # API routes (emails, calendar, drafts, CLI bridge)
-      components/        # React components (inbox, email view, compose, layout)
-      hooks/             # SWR hooks, keyboard shortcuts, CLI events
-      store/             # Zustand state management
-      lib/               # Gmail client, auth, types, event bus
-    prisma/              # Database schema and SQLite DB
+      app/api/            # API routes (emails, calendar, drafts, CLI bridge)
+      components/         # React components (inbox, email view, compose, layout)
+      hooks/              # SWR hooks, keyboard shortcuts, CLI events
+      store/              # Zustand state management
+      lib/                # Gmail client, auth, types, event bus
+    prisma/               # Database schema and SQLite DB
 ```
+
+> **Privacy note:** `user_data/` contains your personal information (name, contacts, email addresses, OAuth tokens). It is gitignored and must never be committed. Only `user_data.example/` templates are shared in the repo.
 
 ## License
 
