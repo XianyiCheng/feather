@@ -11,7 +11,7 @@ Step-by-step procedures for common tasks.
 ### Session Token
 Required for all email/calendar API calls. Get it once per script:
 ```bash
-TOKEN=$(sqlite3 /Users/xianyi/ai_projects/email_helper/code/prisma/dev.db "SELECT sessionToken FROM Session ORDER BY expires DESC LIMIT 1;")
+TOKEN=$(sqlite3 code/prisma/dev.db "SELECT sessionToken FROM Session ORDER BY expires DESC LIMIT 1;")
 ```
 
 ### CLI Action (set-draft, open-thread, etc.)
@@ -69,7 +69,7 @@ payload = json.dumps({'action': 'set-draft', 'to': 'recipient@example.com', 'sub
 1. Look up recipient in `contacts.md` if needed.
 2. Set draft with `to`, `subject`, and `body`:
 ```python
-body = 'Hi NAME,\n\nMESSAGE\n\nBest,\nXianyi'
+body = 'Hi NAME,\n\nMESSAGE\n\nBest,\nYOUR_NAME'
 payload = json.dumps({'action': 'set-draft', 'to': 'recipient@example.com', 'subject': 'SUBJECT', 'body': body})
 ```
 
@@ -144,8 +144,8 @@ Writing requires `drive` + `documents` scopes. If the token is missing or read-o
 ```python
 import os
 from google_auth_oauthlib.flow import InstalledAppFlow
-TOKEN = '/Users/xianyi/ai_projects/email_helper/assistant_agent/token.json'
-CREDS = '/Users/xianyi/ai_projects/email_helper/assistant_agent/client_secret.json'
+TOKEN = 'assistant_agent/token.json'
+CREDS = 'assistant_agent/client_secret.json'
 if os.path.exists(TOKEN): os.remove(TOKEN)
 flow = InstalledAppFlow.from_client_secrets_file(CREDS,
     ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/documents'])
@@ -158,7 +158,7 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
-creds = Credentials.from_authorized_user_file('/Users/xianyi/ai_projects/email_helper/assistant_agent/token.json')
+creds = Credentials.from_authorized_user_file('assistant_agent/token.json')
 if creds.expired and creds.refresh_token:
     creds.refresh(Request())
 service = build('docs', 'v1', credentials=creds)

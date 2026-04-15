@@ -38,7 +38,7 @@ TOKEN = subprocess.run(['sqlite3', '/path/to/dev.db',
 
 payload = json.dumps({
     'to': [{'name': 'Name', 'email': 'x@y.com'}],
-    'cc': [{'name': '', 'email': 'YOUR_PRIMARY_EMAIL@example.com'}],
+    'cc': [{'name': '', 'email': 'the user's primary email (from user_data/profile.md)'}],
     'subject': 'Re: Original Subject',
     'body': 'Reply body with <br> for newlines',
     'threadId': 'gmail-thread-id'  # links draft to the thread
@@ -61,14 +61,14 @@ Use `printf` with double-escaped `\\n` — never `curl -d '...\n...'` (literal `
 
 ## Critical Rules
 - **NEVER use `/api/emails/send`** — always `set-draft` or `POST /api/drafts` so user reviews before sending
-- **Always CC YOUR_PRIMARY_EMAIL@example.com** on all outgoing email
+- **Always CC the user's primary email (from user_data/profile.md)** on all outgoing email
 - **For replies to threads not currently open:** use `POST /api/drafts` with `threadId` — do NOT rely on `open-thread` + `set-draft`
 - **`set-draft` only works when the thread is already open** in the browser (user clicked on it)
 - Clicking a folder clears the draft box — warn the user if there's an unsaved draft
 
 ## Session Token (for direct curl calls to email/calendar endpoints)
 ```bash
-TOKEN=$(sqlite3 /Users/xianyi/ai_projects/email_helper/code/prisma/dev.db \
+TOKEN=$(sqlite3 code/prisma/dev.db \
   "SELECT sessionToken FROM Session ORDER BY expires DESC LIMIT 1;")
 curl -s -b "authjs.session-token=$TOKEN" http://localhost:3000/api/emails?folder=inbox
 ```
@@ -90,7 +90,7 @@ Check calendar before suggesting times: `GET /api/calendar`. Default: 30-minute 
 **Always append `Z` to timestamps** (e.g. `"2026-03-20T14:00:00Z"`).
 
 ## Reading PDFs
-Run `python3 /Users/xianyi/ai_projects/email_helper/code/pdf2txt.py` to convert PDFs to `.txt`, then read the `.txt`.
+Run `python3 code/pdf2txt.py` to convert PDFs to `.txt`, then read the `.txt`.
 
 ## Google Docs
 
@@ -98,7 +98,7 @@ Run `python3 /Users/xianyi/ai_projects/email_helper/code/pdf2txt.py` to convert 
 
 **Read a doc:**
 ```python
-python3 /Users/xianyi/ai_projects/email_helper/assistant_agent/read_doc.py DOC_ID
+python3 assistant_agent/read_doc.py DOC_ID
 ```
 Extract Doc ID from URL: `https://docs.google.com/document/d/DOC_ID/edit`
 

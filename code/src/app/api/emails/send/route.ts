@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, getValidAccessToken } from "@/lib/auth";
 import { emailClient } from "@/lib/email";
 
-const PRIMARY_EMAIL = "YOUR_PRIMARY_EMAIL@example.com";
+const PRIMARY_EMAIL = process.env.PRIMARY_CC_EMAIL || "";
 
 export async function POST(request: NextRequest) {
   const session = await auth();
@@ -25,13 +25,15 @@ export async function POST(request: NextRequest) {
 
   // Always CC primary email on every outgoing email (reply, new, forward)
   const ccList: { name: string; email: string }[] = Array.isArray(cc) ? [...cc] : [];
-  const allRecipients = [
-    ...(to || []).map((a: any) => a.email?.toLowerCase()),
-    ...ccList.map((a: any) => a.email?.toLowerCase()),
-    ...(bcc || []).map((a: any) => a.email?.toLowerCase()),
-  ];
-  if (!allRecipients.includes(PRIMARY_EMAIL.toLowerCase())) {
-    ccList.push({ name: "", email: PRIMARY_EMAIL });
+  if (PRIMARY_EMAIL) {
+    const allRecipients = [
+      ...(to || []).map((a: any) => a.email?.toLowerCase()),
+      ...ccList.map((a: any) => a.email?.toLowerCase()),
+      ...(bcc || []).map((a: any) => a.email?.toLowerCase()),
+    ];
+    if (!allRecipients.includes(PRIMARY_EMAIL.toLowerCase())) {
+      ccList.push({ name: "", email: PRIMARY_EMAIL });
+    }
   }
 
   try {

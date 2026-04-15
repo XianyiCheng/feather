@@ -19,12 +19,13 @@ function parseAddrs(raw: string) {
   }).filter((a) => a.email && a.email.includes("@"));
 }
 
-const MY_EMAILS = ["YOUR_GMAIL@example.com", "YOUR_PRIMARY_EMAIL@example.com", "YOUR_ALT_EMAIL@example.com"];
-const PRIMARY_CC_ADDR = "YOUR_PRIMARY_EMAIL@example.com";
+const MY_EMAILS = (process.env.NEXT_PUBLIC_MY_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+const PRIMARY_CC_ADDR = process.env.NEXT_PUBLIC_PRIMARY_CC_EMAIL || "";
 
 function ensurePrimaryCc(existing: string): string {
+  if (!PRIMARY_CC_ADDR) return existing;
   const addrs = existing.split(",").map((e) => e.trim()).filter(Boolean);
-  if (!addrs.some((e) => e.toLowerCase() === PRIMARY_CC_ADDR)) {
+  if (!addrs.some((e) => e.toLowerCase() === PRIMARY_CC_ADDR.toLowerCase())) {
     addrs.push(PRIMARY_CC_ADDR);
   }
   return addrs.join(", ");

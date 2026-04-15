@@ -2,7 +2,7 @@
 
 Browser-based Gmail client at `http://localhost:3000`. Controls Gmail and Google Calendar via local API.
 
-**Start dev server:** `cd /Users/xianyi/ai_projects/email_helper/code && npm run dev`
+**Start dev server:** `cd code && npm run dev`
 
 ## User Data (Private — Not in Git)
 
@@ -37,7 +37,7 @@ Symlinks in `assistant_agent/` point to `user_data/` so all existing code paths 
 
 - **Before drafting/sending ANY email:** read `user_data/instructions.md` (via `assistant_agent/instructions.md`), then load the `email-assistant` skill.
 - **Before making ANY code change:** load the `coding-lessons` skill and read it fully. It contains documented gotchas and fixes that prevent repeat mistakes.
-- **Before ANY task:** scan your memory files in `~/.claude/projects/-Users-xianyi-ai-projects-email-helper/memory/MEMORY.md` for relevant feedback.
+- **Before ANY task:** scan your memory files in `your Claude Code memory files (MEMORY.md)` for relevant feedback.
 
 Skipping these reads has repeatedly caused wasted round-trips rediscovering known solutions. This is the single most important rule.
 
@@ -59,7 +59,7 @@ All endpoints at `http://localhost:3000`.
 - **`/api/cli` and `/api/cli/state`** — no auth required
 - **All email/calendar/drafts endpoints** — require a session cookie:
   ```bash
-  TOKEN=$(sqlite3 /Users/xianyi/ai_projects/email_helper/code/prisma/dev.db \
+  TOKEN=$(sqlite3 code/prisma/dev.db \
     "SELECT sessionToken FROM Session ORDER BY expires DESC LIMIT 1;")
   # Use with: curl -s -b "authjs.session-token=$TOKEN" http://localhost:3000/api/...
   ```
