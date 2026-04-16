@@ -12,29 +12,37 @@ Email Helper is a local-first email client that connects to your Gmail account a
 
 - **Keyboard-driven inbox** -- navigate with `j`/`k`, open with `Enter`, archive with `e`, reply with `r`, compose with `c`, and more
 - **AI assistant via Claude Code** -- draft replies, triage your inbox, search emails, manage calendar, create Google Docs -- all through natural language in the terminal
+- **Integrated terminal panel** -- `claude` runs right next to your inbox in an embedded terminal, auto-started in the project root with a persistent tmux session
 - **CLI-to-browser bridge** -- Claude Code pushes drafts, opens threads, and controls the UI in real-time through a local API
 - **Gmail drafts integration** -- drafts sync to Gmail so you can review and send from the browser. The AI never sends directly
 - **Google Calendar** -- create, update, and delete events through the API or by asking the AI
-- **Dark/light theme** -- toggleable with `t`, follows system preference by default
+- **Dark/light theme** -- toggleable with `t`, follows system preference by default. The terminal panel matches the app theme automatically
 - **File attachments** -- upload files from your computer or forward emails with their original attachments
 
 ## Architecture
 
 ```
-You (browser)          Claude Code (terminal)
-     |                        |
-     |   localhost:3000       |
-     +--------+---------------+
-              |
-         Next.js App
-              |
-     +--------+--------+
-     |        |        |
-   Gmail    Calendar  Google
-    API      API      Docs API
+                      Browser (localhost:3000)
+         +--------------------------------------------+
+         |  Inbox  |  Thread View  |  Claude Terminal |
+         |         |               |  (iframe)        |
+         +----+----+-------+-------+---------+--------+
+              |            |                 |
+              |            |                 | ws / http
+        Next.js App        |           ttyd (3001)
+         (port 3000)       |           ctrl (3002)
+              |            |                 |
+     +--------+--------+   |            tmux session
+     |        |        |   |                 |
+   Gmail  Calendar  Google |              `claude`
+    API     API     Docs   |              (project root)
+                           |
+                    Claude Code CLI
+                   (pushes drafts via
+                    POST /api/cli)
 ```
 
-The app runs locally on `localhost:3000`. The browser shows your inbox, and Claude Code talks to the same app through REST APIs and a CLI event bus (SSE + polling). When Claude drafts an email, it appears in your compose box instantly -- you review and click Send.
+The app runs locally on `localhost:3000`. The browser shows your inbox plus an embedded terminal. The terminal iframe loads `ttyd` (port 3001), which attaches to a persistent `tmux` session running `claude` in the project root. Claude reads and modifies your inbox through the same app's REST APIs and a CLI event bus (SSE + polling). When Claude drafts an email, it appears in your compose box instantly -- you review and click Send.
 
 ## Tech Stack
 
@@ -49,15 +57,17 @@ The app runs locally on `localhost:3000`. The browser shows your inbox, and Clau
 | Email | Gmail API (googleapis) |
 | Calendar | Google Calendar API |
 | AI | Claude Code (CLI) |
+| Terminal panel | ttyd + tmux (iframe-embedded) |
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 18+ (Node 20+ recommended)
 - A Google Cloud project with OAuth 2.0 credentials
 - Gmail API, Google Calendar API, and Google Docs API enabled
 - [Claude Code](https://claude.ai/claude-code) installed (for the AI assistant features)
+- `ttyd` and `tmux` (for the integrated terminal panel — macOS: `brew install ttyd tmux`)
 
 ### 1. Clone and install
 
@@ -115,11 +125,22 @@ npx prisma db push
 
 ### 6. Run
 
+Run both the Next.js app and the terminal server:
+
 ```bash
-npm run dev
+npm run dev:all
 ```
 
-Open `http://localhost:3000` and sign in with Google.
+Or run them separately in two tabs:
+
+```bash
+npm run terminal   # Terminal panel server (ttyd on port 3001, control on 3002)
+npm run dev        # Next.js app on port 3000
+```
+
+Open `http://localhost:3000` and sign in with Google. The terminal panel on the right will auto-start `claude` in the project root inside a persistent tmux session — it survives theme switches and browser reloads.
+
+> **Skip the terminal panel?** Just run `npm run dev`. The iframe on the right will show a connection error but everything else works. You can still use Claude Code in a separate terminal window.
 
 ## Keyboard Shortcuts
 
@@ -145,7 +166,12 @@ Open `http://localhost:3000` and sign in with Google.
 
 ## Using with Claude Code
 
-The real power of Email Helper comes from pairing it with Claude Code. Open a terminal in the project directory and run `claude`. Then you can say things like:
+The real power of Email Helper comes from pairing it with Claude Code. You have two options:
+
+1. **Use the integrated terminal panel** on the right side of the app -- `claude` is already running there in the project root
+2. **Open a separate terminal** in the project directory and run `claude`
+
+Then you can say things like:
 
 - *"Check my unread emails and tell me what needs my attention"*
 - *"Reply to John's email -- tell him I'm available next Tuesday at 2pm"*
@@ -220,11 +246,12 @@ email_helper/
   code/                   # Next.js application
     src/
       app/api/            # API routes (emails, calendar, drafts, CLI bridge)
-      components/         # React components (inbox, email view, compose, layout)
+      components/         # React components (inbox, email view, compose, terminal)
       hooks/              # SWR hooks, keyboard shortcuts, CLI events
       store/              # Zustand state management
       lib/                # Gmail client, auth, types, event bus
     prisma/               # Database schema and SQLite DB
+    terminal-server.mjs   # Launches ttyd + tmux for the terminal panel
 ```
 
 > **Privacy note:** `user_data/` contains your personal information (name, contacts, email addresses, OAuth tokens). It is gitignored and must never be committed. Only `user_data.example/` templates are shared in the repo.
