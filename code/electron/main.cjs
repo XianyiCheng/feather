@@ -203,6 +203,30 @@ async function startMainApp(creds) {
     `);
   });
 
+  // Ctrl+Tab: toggle focus between email panel and terminal iframe.
+  // Uses before-input-event so it works even when the cross-origin iframe has focus.
+  mainWindow.webContents.on("before-input-event", (_event, input) => {
+    if (input.control && !input.meta && !input.alt && input.key === "Tab" && input.type === "keyDown") {
+      _event.preventDefault();
+      mainWindow.webContents.executeJavaScript(`
+        (function() {
+          const iframe = document.querySelector('iframe[title="Terminal"]');
+          if (!iframe) return;
+          if (document.activeElement === iframe || document.activeElement?.closest?.('iframe')) {
+            // Terminal has focus → move to email panel
+            iframe.blur();
+            const search = document.getElementById('search-input');
+            const draft = document.getElementById('draft-body');
+            (draft || search || document.body).focus();
+          } else {
+            // Email has focus → move to terminal
+            iframe.focus();
+          }
+        })();
+      `);
+    }
+  });
+
   mainWindow.loadURL(`http://localhost:${NEXT_PORT}`);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
