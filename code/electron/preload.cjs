@@ -1,3 +1,5 @@
-// Preload script — runs before web content loads.
-// Currently minimal; exists so contextIsolation works cleanly.
-// Port config is injected via did-finish-load in main.cjs.
+const { contextBridge, ipcRenderer } = require("electron");
+
+contextBridge.exposeInMainWorld("__electronAPI", {
+  saveCredentials: (creds) => ipcRenderer.invoke("save-credentials", creds),
+});
