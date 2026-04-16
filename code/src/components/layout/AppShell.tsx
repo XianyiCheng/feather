@@ -55,6 +55,7 @@ export function AppShell() {
   const [draftPct, setDraftPct] = useState(() => loadSize("draft-pct", 35));
   // Terminal panel width in px (resizable, 0 = collapsed)
   const [terminalW, setTerminalW] = useState(() => loadSize("terminal-w", 500));
+  const [isDragging, setIsDragging] = useState(false);
   const terminalCollapsed = terminalW < 60;
   const toggleTerminal = useCallback(() => {
     const next = terminalCollapsed ? (loadSize("terminal-w-last", 500) || 500) : terminalW;
@@ -115,8 +116,10 @@ export function AppShell() {
           document.removeEventListener("mouseup", onUp);
           document.body.style.cursor = "";
           document.body.style.userSelect = "";
+          setIsDragging(false);
         }
 
+        setIsDragging(true);
         document.addEventListener("mousemove", onMove);
         document.addEventListener("mouseup", onUp);
         document.body.style.cursor = axis === "x" ? "col-resize" : "row-resize";
@@ -130,6 +133,12 @@ export function AppShell() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100">
+      {isDragging && (
+        <div
+          className="fixed inset-0 z-50"
+          style={{ cursor: "col-resize" }}
+        />
+      )}
       {isAuthError && (
         <div className="px-4 py-2 bg-yellow-900/80 border-b border-yellow-700 text-yellow-200 text-sm flex items-center justify-between">
           <span>Google session expired. Please sign in again to refresh your token.</span>
