@@ -53,8 +53,20 @@ export function AppShell() {
   const [threadListW, setThreadListW] = useState(() => loadSize("threadlist-w", 320));
   // Draft reply height as percentage of the email column
   const [draftPct, setDraftPct] = useState(() => loadSize("draft-pct", 35));
-  // Terminal panel width in px (resizable)
+  // Terminal panel width in px (resizable, 0 = collapsed)
   const [terminalW, setTerminalW] = useState(() => loadSize("terminal-w", 500));
+  const terminalCollapsed = terminalW < 60;
+  const toggleTerminal = useCallback(() => {
+    const next = terminalCollapsed ? (loadSize("terminal-w-last", 500) || 500) : terminalW;
+    if (terminalCollapsed) {
+      setTerminalW(next);
+      saveSize("terminal-w", next);
+    } else {
+      saveSize("terminal-w-last", terminalW);
+      setTerminalW(0);
+      saveSize("terminal-w", 0);
+    }
+  }, [terminalCollapsed, terminalW]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const emailColRef = useRef<HTMLDivElement>(null);
@@ -70,11 +82,17 @@ export function AppShell() {
       asPct?: boolean,
       refEl?: React.RefObject<HTMLDivElement | null>,
       reverse?: boolean,
+      snapThreshold?: number, // if set, values below this snap to 0
     ) => {
       return (e: React.MouseEvent) => {
         e.preventDefault();
         const startPos = axis === "x" ? e.clientX : e.clientY;
         const startVal = getBase();
+
+        function clampAndSnap(raw: number): number {
+          if (snapThreshold !== undefined && raw < snapThreshold) return 0;
+          return Math.max(min, Math.min(max, raw));
+        }
 
         function onMove(ev: MouseEvent) {
           const rawDelta = (axis === "x" ? ev.clientX : ev.clientY) - startPos;
@@ -82,11 +100,11 @@ export function AppShell() {
           if (asPct && refEl?.current) {
             const total = axis === "x" ? refEl.current.offsetWidth : refEl.current.offsetHeight;
             const deltaPct = (delta / total) * 100;
-            const newVal = Math.max(min, Math.min(max, startVal - deltaPct));
+            const newVal = clampAndSnap(startVal - deltaPct);
             setter(newVal);
             saveSize(storageKey, newVal);
           } else {
-            const newVal = Math.max(min, Math.min(max, startVal + delta));
+            const newVal = clampAndSnap(startVal + delta);
             setter(newVal);
             saveSize(storageKey, newVal);
           }
@@ -183,11 +201,35 @@ export function AppShell() {
         {/* Col 4: Terminal panel */}
         <DragHandle
           direction="col"
-          onMouseDown={startDrag(setTerminalW, "terminal-w", "x", () => terminalW, 300, 900, false, undefined, true)}
+          onMouseDown={startDrag(
+            (v: number) => {
+              setTerminalW(v);
+              if (v >= 60) saveSize("terminal-w-last", v);
+            },
+            "terminal-w",
+            "x",
+            () => terminalW,
+            200,
+            900,
+            false,
+            undefined,
+            true,
+            200, // anything narrower than 200px snaps closed
+          )}
         />
-        <div style={{ width: terminalW }} className="flex-shrink-0 h-full overflow-hidden border-l border-gray-800">
-          <TerminalPanel />
-        </div>
+        {terminalCollapsed ? (
+          <button
+            onClick={toggleTerminal}
+            className="flex-shrink-0 h-full w-6 border-l border-gray-800 bg-gray-900 hover:bg-gray-800 text-gray-500 hover:text-gray-200 text-xs flex items-center justify-center transition-colors"
+            title="Show terminal"
+          >
+            ‹
+          </button>
+        ) : (
+          <div style={{ width: terminalW }} className="flex-shrink-0 h-full overflow-hidden border-l border-gray-800">
+            <TerminalPanel onCollapse={toggleTerminal} />
+          </div>
+        )}
       </div>
 
       {/* Bottom bar */}

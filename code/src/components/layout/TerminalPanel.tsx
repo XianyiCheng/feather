@@ -13,7 +13,7 @@ function resolveTheme(theme: "dark" | "light" | "system"): "dark" | "light" {
   return theme;
 }
 
-export function TerminalPanel() {
+export function TerminalPanel({ onCollapse }: { onCollapse?: () => void } = {}) {
   const theme = useAppStore((s) => s.theme);
   const [reloadKey, setReloadKey] = useState(0);
   const currentTerminalTheme = useRef<"dark" | "light">("dark");
@@ -52,13 +52,24 @@ export function TerminalPanel() {
     <div className="h-full flex flex-col bg-gray-950">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-800 flex-shrink-0">
         <span className="text-xs text-gray-400 font-medium">Claude Terminal</span>
-        <button
-          onClick={() => setReloadKey((k) => k + 1)}
-          className="text-xs text-gray-500 hover:text-gray-200 transition-colors"
-          title="Reload terminal"
-        >
-          ↻
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setReloadKey((k) => k + 1)}
+            className="text-xs text-gray-500 hover:text-gray-200 transition-colors"
+            title="Reload terminal"
+          >
+            ↻
+          </button>
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="text-xs text-gray-500 hover:text-gray-200 transition-colors"
+              title="Collapse terminal"
+            >
+              ›
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden bg-gray-950">
         <iframe
