@@ -51,6 +51,21 @@ export function AppShell() {
     setThreads(threads);
   }, [fetchedThreads]);
 
+  // Detect when focus moves to the terminal iframe (cross-origin clicks
+  // inside the iframe don't fire mouseDown on parent, but window.blur does)
+  useEffect(() => {
+    function handleBlur() {
+      setTimeout(() => {
+        if (document.activeElement?.tagName === "IFRAME" &&
+            (document.activeElement as HTMLIFrameElement).title === "Terminal") {
+          useAppStore.getState().setFocusedPanel("terminal");
+        }
+      }, 0);
+    }
+    window.addEventListener("blur", handleBlur);
+    return () => window.removeEventListener("blur", handleBlur);
+  }, []);
+
   // Thread list width in px (resizable)
   const [threadListW, setThreadListW] = useState(() => loadSize("threadlist-w", 320));
   // Draft reply height as percentage of the email column
@@ -164,7 +179,7 @@ export function AppShell() {
         <div
           style={{ width: threadListW }}
           className="flex-shrink-0 h-full overflow-hidden"
-          onClick={() => useAppStore.getState().setFocusedPanel("threads")}
+          onMouseDown={() => useAppStore.getState().setFocusedPanel("threads")}
         >
           <div className="flex flex-col h-full">
             <PanelHeader title="Threads" active={focusedPanel === "threads"} />
@@ -182,7 +197,7 @@ export function AppShell() {
         <div
           ref={emailColRef}
           className="flex-1 min-w-0 h-full overflow-hidden flex flex-col"
-          onClick={() => useAppStore.getState().setFocusedPanel("email")}
+          onMouseDown={() => useAppStore.getState().setFocusedPanel("email")}
         >
           <PanelHeader title="Email" active={focusedPanel === "email"} />
           {isDraftOpen ? (
@@ -255,7 +270,7 @@ export function AppShell() {
             visibility: terminalCollapsed ? "hidden" : "visible",
           }}
           className="flex-shrink-0 h-full overflow-hidden border-l border-gray-800"
-          onClick={() => useAppStore.getState().setFocusedPanel("terminal")}
+          onMouseDown={() => useAppStore.getState().setFocusedPanel("terminal")}
         >
           <TerminalPanel onCollapse={toggleTerminal} />
         </div>

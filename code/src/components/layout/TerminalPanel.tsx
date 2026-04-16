@@ -31,18 +31,13 @@ export function TerminalPanel({ onCollapse }: { onCollapse?: () => void } = {}) 
   const initedRef = useRef(false);
   const ports = getTerminalPorts();
 
-  // Push theme changes to the terminal server
+  // Push theme to the terminal server — on mount AND on change
   useEffect(() => {
     const resolved = resolveTheme(theme);
-    // Skip the very first run if it matches what's already running
-    if (!initedRef.current) {
-      initedRef.current = true;
-      currentTerminalTheme.current = resolved;
-      return;
-    }
-    if (currentTerminalTheme.current === resolved) return;
-
+    if (currentTerminalTheme.current === resolved && initedRef.current) return;
+    initedRef.current = true;
     currentTerminalTheme.current = resolved;
+
     fetch(`http://localhost:${ports.ctrl}/theme`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -51,7 +46,6 @@ export function TerminalPanel({ onCollapse }: { onCollapse?: () => void } = {}) 
       .then((r) => r.json())
       .then((result) => {
         if (result.restarted) {
-          // Give ttyd a moment to respawn, then reload the iframe
           setTimeout(() => setReloadKey((k) => k + 1), 500);
         }
       })
