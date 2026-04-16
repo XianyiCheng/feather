@@ -9,7 +9,7 @@
  * window that walks the user through creating their own Google OAuth client
  * and stores the credentials in <userData>/credentials.json.
  */
-const { app, BrowserWindow, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, ipcMain, globalShortcut } = require("electron");
 const { spawn } = require("child_process");
 const crypto = require("crypto");
 const path = require("path");
@@ -204,14 +204,17 @@ async function startMainApp(creds) {
   });
 
   // Ctrl+Tab: cycle focus between panels (threads → email → terminal).
-  // Uses before-input-event so it works even when the cross-origin iframe has focus.
-  mainWindow.webContents.on("before-input-event", (_event, input) => {
-    if (input.control && !input.meta && !input.alt && input.key === "Tab" && input.type === "keyDown") {
-      _event.preventDefault();
+  // globalShortcut works even when iframe has focus (before-input-event doesn't fire for Ctrl+Tab).
+  globalShortcut.register("Ctrl+Tab", () => {
+    if (mainWindow && mainWindow.isFocused()) {
       mainWindow.webContents.executeJavaScript(`
         window.dispatchEvent(new CustomEvent('cycle-panel'));
       `);
     }
+  });
+
+  mainWindow.on("closed", () => {
+    globalShortcut.unregister("Ctrl+Tab");
   });
 
   mainWindow.loadURL(`http://localhost:${NEXT_PORT}`);
