@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "terminal": "node terminal-server.mjs",
+    "dev:all": "node terminal-server.mjs & next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

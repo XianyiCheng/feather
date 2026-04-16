@@ -1,0 +1,73 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useAppStore } from "@/store";
+
+function resolveTheme(theme: "dark" | "light" | "system"): "dark" | "light" {
+  if (theme === "system") {
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: light)").matches) {
+      return "light";
+    }
+    return "dark";
+  }
+  return theme;
+}
+
+export function TerminalPanel() {
+  const theme = useAppStore((s) => s.theme);
+  const [reloadKey, setReloadKey] = useState(0);
+  const currentTerminalTheme = useRef<"dark" | "light">("dark");
+  const initedRef = useRef(false);
+
+  // Push theme changes to the terminal server
+  useEffect(() => {
+    const resolved = resolveTheme(theme);
+    // Skip the very first run if it matches what's already running
+    if (!initedRef.current) {
+      initedRef.current = true;
+      currentTerminalTheme.current = resolved;
+      return;
+    }
+    if (currentTerminalTheme.current === resolved) return;
+
+    currentTerminalTheme.current = resolved;
+    fetch("http://localhost:3002/theme", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ theme: resolved }),
+    })
+      .then((r) => r.json())
+      .then((result) => {
+        if (result.restarted) {
+          // Give ttyd a moment to respawn, then reload the iframe
+          setTimeout(() => setReloadKey((k) => k + 1), 500);
+        }
+      })
+      .catch(() => {
+        // Terminal server not running — ignore
+      });
+  }, [theme]);
+
+  return (
+    <div className="h-full flex flex-col bg-gray-950">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-800 flex-shrink-0">
+        <span className="text-xs text-gray-400 font-medium">Claude Terminal</span>
+        <button
+          onClick={() => setReloadKey((k) => k + 1)}
+          className="text-xs text-gray-500 hover:text-gray-200 transition-colors"
+          title="Reload terminal"
+        >
+          ↻
+        </button>
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden bg-gray-950">
+        <iframe
+          key={reloadKey}
+          src="http://localhost:3001"
+          className="w-full h-full border-0"
+          title="Terminal"
+        />
+      </div>
+    </div>
+  );
+}

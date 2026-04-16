@@ -14,6 +14,7 @@ import { DraftReply } from "../email/DraftReply";
 import { ComposeModal } from "../email/ComposeModal";
 import { ShortcutHelp } from "./ShortcutHelp";
 import { ThemeToggle } from "./ThemeToggle";
+import { TerminalPanel } from "./TerminalPanel";
 
 function loadSize(key: string, fallback: number): number {
   if (typeof window === "undefined") return fallback;
@@ -52,6 +53,8 @@ export function AppShell() {
   const [threadListW, setThreadListW] = useState(() => loadSize("threadlist-w", 320));
   // Draft reply height as percentage of the email column
   const [draftPct, setDraftPct] = useState(() => loadSize("draft-pct", 35));
+  // Terminal panel width in px (resizable)
+  const [terminalW, setTerminalW] = useState(() => loadSize("terminal-w", 500));
 
   const containerRef = useRef<HTMLDivElement>(null);
   const emailColRef = useRef<HTMLDivElement>(null);
@@ -66,6 +69,7 @@ export function AppShell() {
       max: number,
       asPct?: boolean,
       refEl?: React.RefObject<HTMLDivElement | null>,
+      reverse?: boolean,
     ) => {
       return (e: React.MouseEvent) => {
         e.preventDefault();
@@ -73,7 +77,8 @@ export function AppShell() {
         const startVal = getBase();
 
         function onMove(ev: MouseEvent) {
-          const delta = (axis === "x" ? ev.clientX : ev.clientY) - startPos;
+          const rawDelta = (axis === "x" ? ev.clientX : ev.clientY) - startPos;
+          const delta = reverse ? -rawDelta : rawDelta;
           if (asPct && refEl?.current) {
             const total = axis === "x" ? refEl.current.offsetWidth : refEl.current.offsetHeight;
             const deltaPct = (delta / total) * 100;
@@ -173,6 +178,15 @@ export function AppShell() {
               </div>
             </>
           )}
+        </div>
+
+        {/* Col 4: Terminal panel */}
+        <DragHandle
+          direction="col"
+          onMouseDown={startDrag(setTerminalW, "terminal-w", "x", () => terminalW, 300, 900, false, undefined, true)}
+        />
+        <div style={{ width: terminalW }} className="flex-shrink-0 h-full overflow-hidden border-l border-gray-800">
+          <TerminalPanel />
         </div>
       </div>
 
