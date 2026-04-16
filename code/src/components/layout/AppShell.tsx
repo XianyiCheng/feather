@@ -15,6 +15,7 @@ import { ComposeModal } from "../email/ComposeModal";
 import { ShortcutHelp } from "./ShortcutHelp";
 import { ThemeToggle } from "./ThemeToggle";
 import { TerminalPanel } from "./TerminalPanel";
+import { PanelHeader } from "./PanelHeader";
 
 function loadSize(key: string, fallback: number): number {
   if (typeof window === "undefined") return fallback;
@@ -37,6 +38,7 @@ export function AppShell() {
   const activeFolder = useAppStore((s) => s.activeFolder);
   const isComposeOpen = useAppStore((s) => s.isComposeOpen);
   const showShortcutHelp = useAppStore((s) => s.showShortcutHelp);
+  const focusedPanel = useAppStore((s) => s.focusedPanel);
   // In drafts folder, show full-height compose only for standalone drafts (1 message).
   // Reply drafts (>1 message) show thread view + compose like normal folders.
   const isDraftOpen = activeFolder === "drafts" && !!openThread && (openThread.messageCount || openThread.messages?.length || 0) <= 1;
@@ -48,6 +50,21 @@ export function AppShell() {
       .map((t) => markedReadIds.has(t.id) ? { ...t, isRead: true } : t);
     setThreads(threads);
   }, [fetchedThreads]);
+
+  // Detect when focus moves to the terminal iframe (cross-origin clicks
+  // inside the iframe don't fire mouseDown on parent, but window.blur does)
+  useEffect(() => {
+    function handleBlur() {
+      setTimeout(() => {
+        if (document.activeElement?.tagName === "IFRAME" &&
+            (document.activeElement as HTMLIFrameElement).title === "Terminal") {
+          useAppStore.getState().setFocusedPanel("terminal");
+        }
+      }, 0);
+    }
+    window.addEventListener("blur", handleBlur);
+    return () => window.removeEventListener("blur", handleBlur);
+  }, []);
 
   // Thread list width in px (resizable)
   const [threadListW, setThreadListW] = useState(() => loadSize("threadlist-w", 320));
@@ -157,8 +174,13 @@ export function AppShell() {
         </div>
 
         {/* Col 2: Thread list */}
-        <div style={{ width: threadListW }} className="flex-shrink-0 h-full overflow-hidden">
+        <div
+          style={{ width: threadListW }}
+          className="flex-shrink-0 h-full overflow-hidden"
+          onMouseDown={() => useAppStore.getState().setFocusedPanel("threads")}
+        >
           <div className="flex flex-col h-full">
+            <PanelHeader title="Threads" active={focusedPanel === "threads"} />
             <SearchBar />
             <ThreadList isLoading={isLoading} loadingMore={loadingMore} hasMore={hasMore} onLoadMore={loadMore} />
           </div>
@@ -170,7 +192,12 @@ export function AppShell() {
         />
 
         {/* Col 3: Email + Draft — fills remaining space */}
-        <div ref={emailColRef} className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
+        <div
+          ref={emailColRef}
+          className="flex-1 min-w-0 h-full overflow-hidden flex flex-col"
+          onMouseDown={() => useAppStore.getState().setFocusedPanel("email")}
+        >
+          <PanelHeader title="Email" active={focusedPanel === "email"} />
           {isDraftOpen ? (
             /* Draft folder: full-height compose, no thread above */
             <DraftReply />
@@ -241,6 +268,7 @@ export function AppShell() {
             visibility: terminalCollapsed ? "hidden" : "visible",
           }}
           className="flex-shrink-0 h-full overflow-hidden border-l border-gray-800"
+          onMouseDown={() => useAppStore.getState().setFocusedPanel("terminal")}
         >
           <TerminalPanel onCollapse={toggleTerminal} />
         </div>

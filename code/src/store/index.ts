@@ -81,6 +81,11 @@ interface AppState {
   // Thread detail refresh counter — incremented after sending to reload current thread
   threadRefreshCounter: number;
   triggerThreadRefresh: () => void;
+
+  // Focused panel — which panel has keyboard focus
+  focusedPanel: "threads" | "email" | "terminal";
+  setFocusedPanel: (panel: "threads" | "email" | "terminal") => void;
+  cycleFocusedPanel: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -209,6 +214,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   threadRefreshCounter: 0,
   triggerThreadRefresh: () => set((state) => ({ threadRefreshCounter: state.threadRefreshCounter + 1 })),
+
+  focusedPanel: "threads",
+  setFocusedPanel: (panel) => set({ focusedPanel: panel }),
+  cycleFocusedPanel: () => set((state) => {
+    const order: Array<"threads" | "email" | "terminal"> = ["threads", "email", "terminal"];
+    const idx = order.indexOf(state.focusedPanel);
+    return { focusedPanel: order[(idx + 1) % order.length] };
+  }),
 
   discardedThreadIds: new Set<string>(),
   discardThread: (id) => {

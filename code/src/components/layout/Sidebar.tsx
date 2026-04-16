@@ -18,11 +18,7 @@ export function Sidebar() {
 
   return (
     <aside className="w-44 bg-gray-900 border-r border-gray-800 flex flex-col py-2 h-full">
-      <div className="px-3 pb-2 mb-2 border-b border-gray-800">
-        <h1 className="text-sm font-semibold text-gray-300 tracking-wide">
-          Email Helper
-        </h1>
-      </div>
+      <div className="pb-1 mb-1 border-b border-gray-800" />
       <nav className="flex-1">
         {folders.map((f) => (
           <button
