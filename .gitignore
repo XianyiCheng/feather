@@ -17,6 +17,7 @@ code/node_modules
 
 # next.js
 code/.next/
+code/.next-electron/
 code/out/
 
 # production

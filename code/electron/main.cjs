@@ -50,7 +50,12 @@ function startNext() {
     console.log(`[electron] Starting Next.js dev server on port ${NEXT_PORT}`);
     const p = spawn("npx", ["next", "dev", "-p", NEXT_PORT], {
       cwd,
-      env: { ...process.env, PORT: NEXT_PORT },
+      env: {
+        ...process.env,
+        PORT: NEXT_PORT,
+        // Use a separate build dir so electron can run alongside `npm run dev`
+        NEXT_DIST_DIR: ".next-electron",
+      },
       stdio: "inherit",
     });
     p.on("exit", (code) => console.log(`[electron] Next.js exited with code ${code}`));
