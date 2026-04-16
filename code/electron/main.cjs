@@ -209,26 +209,7 @@ async function startMainApp(creds) {
     if (input.control && !input.meta && !input.alt && input.key === "Tab" && input.type === "keyDown") {
       _event.preventDefault();
       mainWindow.webContents.executeJavaScript(`
-        (function() {
-          const store = window.__zustand_store;
-          if (store) {
-            store.getState().cycleFocusedPanel();
-            const panel = store.getState().focusedPanel;
-            const iframe = document.querySelector('iframe[title="Terminal"]');
-            if (panel === "terminal" && iframe) {
-              iframe.focus();
-            } else {
-              if (iframe) iframe.blur();
-              if (panel === "threads") {
-                const search = document.getElementById('search-input');
-                if (search) search.focus();
-              } else {
-                const draft = document.getElementById('draft-body');
-                if (draft) draft.focus();
-              }
-            }
-          }
-        })();
+        window.dispatchEvent(new CustomEvent('cycle-panel'));
       `);
     }
   });

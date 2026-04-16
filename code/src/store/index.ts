@@ -247,7 +247,3 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 }));
 
-// Expose store on window for Electron's before-input-event handler
-if (typeof window !== "undefined") {
-  (window as any).__zustand_store = useAppStore;
-}
