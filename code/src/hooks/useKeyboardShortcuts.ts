@@ -147,16 +147,18 @@ export function useKeyboardShortcuts() {
       s.cycleFocusedPanel();
       const panel = useAppStore.getState().focusedPanel;
       const iframe = document.querySelector('iframe[title="Terminal"]') as HTMLIFrameElement | null;
+      // Blur everything first
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      if (iframe) iframe.blur();
+
       if (panel === "terminal" && iframe) {
         iframe.focus();
+      } else if (panel === "email") {
+        const draft = document.getElementById("draft-body");
+        if (draft) draft.focus(); else document.body.focus();
       } else {
-        if (iframe) iframe.blur();
-        if (panel === "threads") {
-          document.getElementById("search-input")?.focus();
-        } else {
-          const draft = document.getElementById("draft-body");
-          if (draft) draft.focus(); else document.body.focus();
-        }
+        // threads — just focus body, not the search input
+        document.body.focus();
       }
     }
     window.addEventListener("cycle-panel", handleCyclePanel);

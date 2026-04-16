@@ -161,7 +161,11 @@ export function AppShell() {
         </div>
 
         {/* Col 2: Thread list */}
-        <div style={{ width: threadListW }} className="flex-shrink-0 h-full overflow-hidden">
+        <div
+          style={{ width: threadListW }}
+          className="flex-shrink-0 h-full overflow-hidden"
+          onClick={() => useAppStore.getState().setFocusedPanel("threads")}
+        >
           <div className="flex flex-col h-full">
             <PanelHeader title="Threads" active={focusedPanel === "threads"} />
             <SearchBar />
@@ -175,7 +179,11 @@ export function AppShell() {
         />
 
         {/* Col 3: Email + Draft — fills remaining space */}
-        <div ref={emailColRef} className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
+        <div
+          ref={emailColRef}
+          className="flex-1 min-w-0 h-full overflow-hidden flex flex-col"
+          onClick={() => useAppStore.getState().setFocusedPanel("email")}
+        >
           <PanelHeader title="Email" active={focusedPanel === "email"} />
           {isDraftOpen ? (
             /* Draft folder: full-height compose, no thread above */
@@ -247,6 +255,7 @@ export function AppShell() {
             visibility: terminalCollapsed ? "hidden" : "visible",
           }}
           className="flex-shrink-0 h-full overflow-hidden border-l border-gray-800"
+          onClick={() => useAppStore.getState().setFocusedPanel("terminal")}
         >
           <TerminalPanel onCollapse={toggleTerminal} />
         </div>
