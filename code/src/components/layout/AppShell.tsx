@@ -226,7 +226,7 @@ export function AppShell() {
             200, // anything narrower than 200px snaps closed
           )}
         />
-        {terminalCollapsed ? (
+        {terminalCollapsed && (
           <button
             onClick={toggleTerminal}
             className="flex-shrink-0 h-full w-6 border-l border-gray-800 bg-gray-900 hover:bg-gray-800 text-gray-500 hover:text-gray-200 text-xs flex items-center justify-center transition-colors"
@@ -234,11 +234,16 @@ export function AppShell() {
           >
             ‹
           </button>
-        ) : (
-          <div style={{ width: terminalW }} className="flex-shrink-0 h-full overflow-hidden border-l border-gray-800">
-            <TerminalPanel onCollapse={toggleTerminal} />
-          </div>
         )}
+        <div
+          style={{
+            width: terminalCollapsed ? 0 : terminalW,
+            visibility: terminalCollapsed ? "hidden" : "visible",
+          }}
+          className="flex-shrink-0 h-full overflow-hidden border-l border-gray-800"
+        >
+          <TerminalPanel onCollapse={toggleTerminal} />
+        </div>
       </div>
 
       {/* Bottom bar */}
