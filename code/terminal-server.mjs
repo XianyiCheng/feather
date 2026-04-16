@@ -1,11 +1,12 @@
 /**
- * Standalone WebSocket server that bridges browser xterm.js to a local PTY.
- * Runs on port 3001 alongside the Next.js app on port 3000.
+ * Launches ttyd (a mature terminal-over-websocket server) on port 3001.
+ * The frontend embeds this in an iframe — ttyd handles all PTY plumbing.
+ *
+ * Requires ttyd installed: `brew install ttyd`
  *
  * Usage: node terminal-server.mjs
  */
-import { WebSocketServer } from "ws";
-import pty from "node-pty";
+import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 
@@ -14,65 +15,32 @@ const __dirname = dirname(__filename);
 const PROJECT_ROOT = resolve(__dirname, "..");
 
 const PORT = 3001;
-const wss = new WebSocketServer({ port: PORT });
 
-console.log(`Terminal WebSocket server listening on ws://localhost:${PORT}`);
+// ttyd args:
+//   -p 3001          listen on port 3001
+//   -W               allow write (client can type)
+//   --writable       same as -W on newer versions
+//   -t               theme/options
+//   bash -c "..."    command to run — cd to project root, then claude
+const args = [
+  "-p", String(PORT),
+  "-W",
+  "-t", "fontSize=13",
+  "-t", "theme={\"background\":\"#030712\",\"foreground\":\"#e5e7eb\",\"cursor\":\"#e5e7eb\"}",
+  "-t", "fontFamily=Menlo, Monaco, 'Courier New', monospace",
+  "-t", "disableLeaveAlert=true",
+  "bash", "-c", `cd '${PROJECT_ROOT}' && claude; exec bash`,
+];
 
-wss.on("connection", (ws) => {
-  console.log("Terminal client connected");
+console.log(`Starting ttyd on http://localhost:${PORT}`);
+console.log(`Project root: ${PROJECT_ROOT}`);
 
-  const shell = process.env.SHELL || "/bin/bash";
+const child = spawn("ttyd", args, { stdio: "inherit" });
 
-  // Spawn a PTY that starts claude in the project root
-  const ptyProcess = pty.spawn(shell, ["-l"], {
-    name: "xterm-256color",
-    cols: 120,
-    rows: 30,
-    cwd: PROJECT_ROOT,
-    env: { ...process.env, TERM: "xterm-256color" },
-  });
-
-  // Send initial command to start claude
-  setTimeout(() => {
-    ptyProcess.write("claude\r");
-  }, 500);
-
-  // PTY → Browser
-  ptyProcess.onData((data) => {
-    try {
-      ws.send(data);
-    } catch {
-      // Client disconnected
-    }
-  });
-
-  // Browser → PTY
-  ws.on("message", (msg) => {
-    const data = msg.toString();
-    try {
-      // Handle resize messages
-      const parsed = JSON.parse(data);
-      if (parsed.type === "resize" && parsed.cols && parsed.rows) {
-        ptyProcess.resize(parsed.cols, parsed.rows);
-        return;
-      }
-    } catch {
-      // Not JSON — regular terminal input
-    }
-    ptyProcess.write(data);
-  });
-
-  ws.on("close", () => {
-    console.log("Terminal client disconnected");
-    ptyProcess.kill();
-  });
-
-  ptyProcess.onExit(() => {
-    console.log("PTY process exited");
-    try {
-      ws.close();
-    } catch {
-      // Already closed
-    }
-  });
+child.on("exit", (code) => {
+  console.log(`ttyd exited with code ${code}`);
+  process.exit(code ?? 0);
 });
+
+process.on("SIGINT", () => child.kill("SIGINT"));
+process.on("SIGTERM", () => child.kill("SIGTERM"));
