@@ -15,8 +15,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PROJECT_ROOT = resolve(__dirname, "..");
 
-const TTYD_PORT = 3001;
-const CTRL_PORT = 3002;
+const TTYD_PORT = parseInt(process.env.TTYD_PORT || "3001", 10);
+const CTRL_PORT = parseInt(process.env.CTRL_PORT || "3002", 10);
+const TMUX_SESSION_NAME = process.env.TMUX_SESSION || "email-helper-claude";
 
 const THEMES = {
   dark: {
@@ -36,7 +37,7 @@ const THEMES = {
 let ttydProcess = null;
 let currentTheme = "dark";
 
-const TMUX_SESSION = "email-helper-claude";
+const TMUX_SESSION = TMUX_SESSION_NAME;
 const TMUX_CONFIG = resolve(__dirname, "tmux.conf");
 
 function startTtyd(theme) {

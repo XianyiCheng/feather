@@ -13,11 +13,21 @@ function resolveTheme(theme: "dark" | "light" | "system"): "dark" | "light" {
   return theme;
 }
 
+// Terminal server ports — electron can override via window.__TERMINAL_CONFIG
+function getTerminalPorts() {
+  const cfg = typeof window !== "undefined" ? (window as any).__TERMINAL_CONFIG : null;
+  return {
+    ttyd: cfg?.ttydPort || 3001,
+    ctrl: cfg?.ctrlPort || 3002,
+  };
+}
+
 export function TerminalPanel({ onCollapse }: { onCollapse?: () => void } = {}) {
   const theme = useAppStore((s) => s.theme);
   const [reloadKey, setReloadKey] = useState(0);
   const currentTerminalTheme = useRef<"dark" | "light">("dark");
   const initedRef = useRef(false);
+  const ports = getTerminalPorts();
 
   // Push theme changes to the terminal server
   useEffect(() => {
@@ -31,7 +41,7 @@ export function TerminalPanel({ onCollapse }: { onCollapse?: () => void } = {}) 
     if (currentTerminalTheme.current === resolved) return;
 
     currentTerminalTheme.current = resolved;
-    fetch("http://localhost:3002/theme", {
+    fetch(`http://localhost:${ports.ctrl}/theme`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ theme: resolved }),
@@ -74,7 +84,7 @@ export function TerminalPanel({ onCollapse }: { onCollapse?: () => void } = {}) 
       <div className="flex-1 min-h-0 overflow-hidden bg-gray-950">
         <iframe
           key={reloadKey}
-          src="http://localhost:3001"
+          src={`http://localhost:${ports.ttyd}`}
           className="w-full h-full border-0"
           title="Terminal"
         />

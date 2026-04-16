@@ -22,6 +22,9 @@ code/out/
 # production
 code/build
 
+# electron builds
+code/dist-electron/
+
 # misc
 .DS_Store
 *.pem

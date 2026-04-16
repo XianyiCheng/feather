@@ -8,7 +8,32 @@
     "dev:all": "node terminal-server.mjs & next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron:dev": "electron electron/main.cjs",
+    "electron:build": "cross-env ELECTRON_BUILD=1 next build && electron-builder --mac --dir",
+    "electron:dist": "cross-env ELECTRON_BUILD=1 next build && electron-builder --mac"
+  },
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.xianyi.emailhelper",
+    "productName": "Email Helper",
+    "files": [
+      "electron/**/*",
+      ".next/**/*",
+      "public/**/*",
+      "prisma/**/*",
+      "terminal-server.mjs",
+      "tmux.conf",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"]
+    },
+    "directories": {
+      "output": "dist-electron"
+    }
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.79.0",
@@ -33,6 +58,10 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^41.2.1",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.7",
     "prisma": "^7.5.0",
