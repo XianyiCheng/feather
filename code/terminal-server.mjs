@@ -36,18 +36,24 @@ const THEMES = {
 let ttydProcess = null;
 let currentTheme = "dark";
 
+const TMUX_SESSION = "email-helper-claude";
+
 function startTtyd(theme) {
   const t = THEMES[theme] || THEMES.dark;
+  // `tmux new-session -A` attaches to existing session or creates it if missing.
+  // The session runs `claude` in the project root. ttyd restarts keep the session alive.
+  const tmuxCmd = `tmux new-session -A -s ${TMUX_SESSION} -c '${PROJECT_ROOT}' 'claude; exec bash'`;
   const args = [
     "-p", String(TTYD_PORT),
     "-W",
-    "-t", "fontSize=13",
+    "-t", "fontSize=14",
+    "-t", "lineHeight=1.3",
     "-t", `theme=${JSON.stringify(t)}`,
-    "-t", "fontFamily=Menlo, Monaco, 'Courier New', monospace",
+    "-t", "fontFamily=SF Mono, Menlo, Monaco, 'Cascadia Code', 'Courier New', monospace",
     "-t", "disableLeaveAlert=true",
-    "bash", "-c", `cd '${PROJECT_ROOT}' && claude; exec bash`,
+    "bash", "-c", tmuxCmd,
   ];
-  console.log(`Starting ttyd with theme=${theme}`);
+  console.log(`Starting ttyd with theme=${theme} (tmux session: ${TMUX_SESSION})`);
   const child = spawn("ttyd", args, { stdio: "inherit" });
   child.on("exit", (code) => {
     if (child === ttydProcess) {
