@@ -37,12 +37,14 @@ let ttydProcess = null;
 let currentTheme = "dark";
 
 const TMUX_SESSION = "email-helper-claude";
+const TMUX_CONFIG = resolve(__dirname, "tmux.conf");
 
 function startTtyd(theme) {
   const t = THEMES[theme] || THEMES.dark;
   // `tmux new-session -A` attaches to existing session or creates it if missing.
   // The session runs `claude` in the project root. ttyd restarts keep the session alive.
-  const tmuxCmd = `tmux new-session -A -s ${TMUX_SESSION} -c '${PROJECT_ROOT}' 'claude; exec bash'`;
+  // `-f` loads the project's tmux config (mouse scroll, no status bar).
+  const tmuxCmd = `tmux -f '${TMUX_CONFIG}' new-session -A -s ${TMUX_SESSION} -c '${PROJECT_ROOT}' 'claude; exec bash'`;
   const args = [
     "-p", String(TTYD_PORT),
     "-W",
