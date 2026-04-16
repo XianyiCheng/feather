@@ -152,7 +152,7 @@ export function AppShell() {
       )}
       <div ref={containerRef} className="flex-1 flex min-h-0">
         {/* Col 1: Sidebar (fixed width) */}
-        <div className="w-48 flex-shrink-0 h-full overflow-hidden">
+        <div className="w-12 flex-shrink-0 h-full overflow-hidden">
           <Sidebar />
         </div>
 
