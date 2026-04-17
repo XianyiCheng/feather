@@ -55,7 +55,16 @@ Skipping these reads has repeatedly caused wasted round-trips rediscovering know
 
 ## API Reference
 
-All endpoints at `http://localhost:3000`.
+**Port selection:** There are two possible servers — browser dev (`3000`) and Electron standalone (`3100`). Before any CLI call (`/api/cli`, `/api/cli/state`), detect which is active and use that port. Don't hardcode 3000.
+
+```bash
+# Pick the active port — whichever responds to /api/cli/state
+for P in 3100 3000; do
+  if curl -s -f -m 1 "http://localhost:$P/api/cli/state" >/dev/null; then PORT=$P; break; fi
+done
+```
+
+Email/calendar/drafts endpoints can typically run on either port (both share the same Session DB); use the same active port for consistency.
 
 - **`/api/cli` and `/api/cli/state`** — no auth required
 - **All email/calendar/drafts endpoints** — require a session cookie:

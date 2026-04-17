@@ -7,6 +7,8 @@ description: Use this skill whenever helping draft, reply to, forward, or compos
 
 Read `assistant_agent/profile.md` for the user's identity, email tone, and drafting rules.
 
+**Port:** Detect whether the user is running the Electron app (`3100`) or browser dev (`3000`) before any CLI call. Probe `/api/cli/state` on 3100 first, fall back to 3000. Never assume 3000.
+
 ## Core Workflow
 
 **Reply to current email (thread already open in browser):**
