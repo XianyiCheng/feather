@@ -1,5 +1,5 @@
 {
-  "name": "email_helper",
+  "name": "feather",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -15,8 +15,9 @@
   },
   "main": "electron/main.cjs",
   "build": {
-    "appId": "com.xianyi.emailhelper",
-    "productName": "Email Helper",
+    "appId": "com.feathermail.app",
+    "productName": "feather",
+    "icon": "electron/icon.icns",
     "files": [
       "electron/**/*",
       ".next/**/*",

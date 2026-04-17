@@ -184,12 +184,14 @@ async function startMainApp(creds) {
   }
 
   mainWindow = new BrowserWindow({
+    title: "feather",
     width: 1400,
     height: 900,
     minWidth: 900,
     minHeight: 600,
     titleBarStyle: "hiddenInset",
     backgroundColor: "#030712",
+    icon: path.join(__dirname, "icon.icns"),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
