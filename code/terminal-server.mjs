@@ -21,10 +21,10 @@ const TMUX_SESSION_NAME = process.env.TMUX_SESSION || "email-helper-claude";
 
 const THEMES = {
   dark: {
-    background: "#030712",
-    foreground: "#e5e7eb",
-    cursor: "#e5e7eb",
-    selection: "#374151",
+    background: "#0c0a09",
+    foreground: "#e7e5e4",
+    cursor: "#e7e5e4",
+    selection: "#3a3330",
   },
   light: {
     background: "#ffffff",

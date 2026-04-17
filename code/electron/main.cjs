@@ -159,7 +159,7 @@ function showOnboarding() {
     width: 800,
     height: 800,
     titleBarStyle: "hiddenInset",
-    backgroundColor: "#030712",
+    backgroundColor: "#0c0a09",
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -190,7 +190,7 @@ async function startMainApp(creds) {
     minWidth: 900,
     minHeight: 600,
     titleBarStyle: "hiddenInset",
-    backgroundColor: "#030712",
+    backgroundColor: "#0c0a09",
     icon: path.join(__dirname, "icon.icns"),
     webPreferences: {
       contextIsolation: true,
