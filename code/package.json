@@ -38,7 +38,8 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "target": ["dmg", "zip"]
+      "target": ["dmg", "zip"],
+      "hardenedRuntime": false
     },
     "directories": {
       "output": "dist-electron"

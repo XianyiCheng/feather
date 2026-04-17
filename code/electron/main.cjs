@@ -40,6 +40,18 @@ let terminalProcess = null;
 let mainWindow = null;
 let onboardingWindow = null;
 
+// In packaged mode, log to a file since there's no console
+const logFile = IS_PACKAGED
+  ? fs.createWriteStream(path.join(app.getPath("userData"), "feather.log"), { flags: "w" })
+  : null;
+const _log = console.log;
+const _err = console.error;
+if (logFile) {
+  console.log = (...args) => { logFile.write(args.join(" ") + "\n"); _log(...args); };
+  console.error = (...args) => { logFile.write("[ERR] " + args.join(" ") + "\n"); _err(...args); };
+  process.on("uncaughtException", (e) => { logFile.write("[CRASH] " + e.stack + "\n"); logFile.end(); });
+}
+
 function credentialsPath() {
   return path.join(app.getPath("userData"), "credentials.json");
 }
@@ -185,6 +197,11 @@ function startTerminalServer() {
 }
 
 function showOnboarding() {
+  console.log("[electron] showOnboarding() called");
+  const htmlPath = path.join(__dirname, "onboarding.html");
+  const preloadPath = path.join(__dirname, "preload.cjs");
+  console.log(`[electron] onboarding html: ${htmlPath}`);
+  console.log(`[electron] preload: ${preloadPath}`);
   onboardingWindow = new BrowserWindow({
     width: 800,
     height: 800,
@@ -196,7 +213,13 @@ function showOnboarding() {
       preload: path.join(__dirname, "preload.cjs"),
     },
   });
-  onboardingWindow.loadFile(path.join(__dirname, "onboarding.html"));
+  console.log("[electron] Loading onboarding file...");
+  onboardingWindow.loadFile(htmlPath).then(() => {
+    console.log("[electron] Onboarding loaded successfully");
+  }).catch((err) => {
+    console.error("[electron] Onboarding load failed:", err);
+  });
+  onboardingWindow.on("closed", () => { console.log("[electron] Onboarding window closed"); });
   onboardingWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
@@ -259,6 +282,11 @@ async function startMainApp(creds) {
 }
 
 function boot() {
+  console.log(`[electron] boot() — IS_PACKAGED=${IS_PACKAGED} IS_DEV=${IS_DEV} IS_PROD_TEST=${IS_PROD_TEST}`);
+  console.log(`[electron] __dirname=${__dirname}`);
+  console.log(`[electron] PROJECT_ROOT=${PROJECT_ROOT}`);
+  console.log(`[electron] userData=${app.getPath("userData")}`);
+
   // Set dock icon in dev mode (packaged app uses Info.plist)
   if (!IS_PACKAGED && process.platform === "darwin" && app.dock) {
     const iconPath = path.join(PROJECT_ROOT, "public", "feather.png");
@@ -269,6 +297,7 @@ function boot() {
   }
 
   const creds = loadCredentials();
+  console.log(`[electron] credentials found: ${!!creds}`);
   if (!creds) {
     showOnboarding();
   } else {
