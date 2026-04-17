@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Email Helper — Setup</title>
+<title>feather — setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Alumni+Sans+Pinstripe:ital@0;1&display=swap" rel="stylesheet">
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -85,19 +87,18 @@
 </head>
 <body>
 <div class="container">
-  <h1>Welcome to Email Helper</h1>
+  <h1 style="font-family: 'Alumni Sans Pinstripe', sans-serif; font-weight: 400; font-style: italic; letter-spacing: 0.12em; font-size: 36px;">feather</h1>
   <p>
-    This app needs your own Google OAuth credentials so that only you can access your Gmail data.
-    This is a one-time setup — takes about 5 minutes.
+    To get started, you'll need to create your own Google API credentials.
+    This keeps your email data private — only you can access it. One-time setup, about 5 minutes.
   </p>
 
-  <h2>Step-by-step</h2>
+  <h2>Setup</h2>
   <div class="box">
-    <p><span class="step-num">1</span> Go to the <a href="https://console.cloud.google.com/projectcreate" target="_blank">Google Cloud Console</a> and create a new project (e.g. "Email Helper").</p>
+    <p><span class="step-num">1</span> Go to the <a href="https://console.cloud.google.com/projectcreate" target="_blank">Google Cloud Console</a> and create a new project (e.g. "feather").</p>
     <p><span class="step-num">2</span> Enable these APIs: <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank">Gmail</a>, <a href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com" target="_blank">Calendar</a>, <a href="https://console.cloud.google.com/apis/library/docs.googleapis.com" target="_blank">Docs</a>, <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank">Drive</a>.</p>
-    <p><span class="step-num">3</span> Go to <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank">OAuth consent screen</a> → pick <b>External</b> → fill in app name, user support email, developer contact. Add scopes is not required at this step. Add <b>yourself</b> as a Test user. Save.</p>
-    <p><span class="step-num">4</span> Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Credentials</a> → <b>Create Credentials</b> → <b>OAuth client ID</b> → Application type <b>Web application</b>. Add this to <b>Authorized redirect URIs</b>:</p>
-    <p style="margin-left: 36px;"><code>http://localhost:3100/api/auth/callback/google</code></p>
+    <p><span class="step-num">3</span> Go to <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank">OAuth consent screen</a> → pick <b>External</b> → fill in app name, your email for support and developer contact. Add <b>yourself</b> as a Test user. Save.</p>
+    <p><span class="step-num">4</span> Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Credentials</a> → <b>Create Credentials</b> → <b>OAuth client ID</b> → Application type: <b>Web application</b>.</p>
     <p><span class="step-num">5</span> Copy the Client ID and Client Secret and paste them below.</p>
   </div>
 

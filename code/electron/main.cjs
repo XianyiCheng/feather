@@ -22,12 +22,18 @@ const TTYD_PORT = process.env.EH_TTYD_PORT || "3101";
 const CTRL_PORT = process.env.EH_CTRL_PORT || "3102";
 const TMUX_SESSION = "email-helper-app-claude";
 
-const IS_DEV = !app.isPackaged;
+const IS_PACKAGED = app.isPackaged;
+const IS_PROD_TEST = !!process.env.ELECTRON_PROD_TEST; // test standalone without packaging
+const IS_DEV = !IS_PACKAGED && !IS_PROD_TEST;
+
 // In dev: project root is one level up from electron/
+// In prod-test: same as dev, but uses standalone server
 // In packaged: resources are in app.asar.unpacked (for spawnable files)
-const PROJECT_ROOT = IS_DEV
-  ? path.resolve(__dirname, "..")
-  : path.join(process.resourcesPath, "app.asar.unpacked");
+const PROJECT_ROOT = IS_PACKAGED
+  ? path.join(process.resourcesPath, "app.asar.unpacked")
+  : path.resolve(__dirname, "..");
+
+console.log(`[electron] mode=${IS_DEV ? "dev" : IS_PROD_TEST ? "prod-test" : "packaged"} root=${PROJECT_ROOT}`);
 
 let nextProcess = null;
 let terminalProcess = null;
@@ -49,9 +55,8 @@ function loadCredentials() {
     }
   }
 
-  // Dev fallback: read from .env.local so `npm run electron:dev` works
-  // with the dev setup's existing credentials.
-  if (IS_DEV) {
+  // Dev/prod-test fallback: read from .env.local
+  if (IS_DEV || IS_PROD_TEST) {
     const envFile = path.join(PROJECT_ROOT, ".env.local");
     if (fs.existsSync(envFile)) {
       const env = {};
@@ -111,6 +116,7 @@ function startNext(creds) {
     GOOGLE_CLIENT_SECRET: creds.clientSecret,
     NEXTAUTH_URL: `http://localhost:${NEXT_PORT}`,
     NEXTAUTH_SECRET: creds.nextauthSecret,
+    AUTH_TRUST_HOST: "true",
   };
 
   if (IS_DEV) {
@@ -124,29 +130,32 @@ function startNext(creds) {
     return p;
   }
 
-  // In packaged mode, the standalone server is in the unpacked asar.
-  // The asar root has the full project, unpacked root has spawnable files.
-  const asarRoot = path.join(process.resourcesPath, "app.asar");
+  // Production / prod-test: use the standalone server
   const standaloneDir = path.join(PROJECT_ROOT, ".next", "standalone");
   const standaloneServer = path.join(standaloneDir, "server.js");
+  console.log(`[electron] Looking for standalone server at: ${standaloneServer}`);
   if (!fs.existsSync(standaloneServer)) {
-    console.error(`[electron] Missing standalone server at ${standaloneServer}.`);
-    console.error("[electron] Available files:", fs.readdirSync(PROJECT_ROOT).join(", "));
+    console.error(`[electron] MISSING standalone server at ${standaloneServer}`);
+    try {
+      console.error("[electron] PROJECT_ROOT contents:", fs.readdirSync(PROJECT_ROOT).join(", "));
+    } catch (e) { console.error("[electron] Cannot read PROJECT_ROOT:", e.message); }
     app.quit();
     return null;
   }
 
-  // Ensure prisma DB directory exists in user data (persistent across updates)
+  // Persistent DB in user data
   const userDataDir = app.getPath("userData");
   const dbPath = path.join(userDataDir, "dev.db");
   env.DATABASE_URL = `file:${dbPath}`;
 
-  console.log(`[electron] Starting standalone Next.js server on port ${NEXT_PORT}`);
+  console.log(`[electron] Starting standalone Next.js on port ${NEXT_PORT} (cwd: ${standaloneDir})`);
   const p = spawn(process.execPath, [standaloneServer], {
     cwd: standaloneDir,
     env: { ...env, HOSTNAME: "localhost" },
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "pipe"],
   });
+  p.stdout.on("data", (d) => process.stdout.write(`[next] ${d}`));
+  p.stderr.on("data", (d) => process.stderr.write(`[next:err] ${d}`));
   p.on("exit", (code) => console.log(`[electron] Next.js exited with code ${code}`));
   return p;
 }
