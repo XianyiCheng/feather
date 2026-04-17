@@ -280,6 +280,26 @@ async function startMainApp(creds) {
     globalShortcut.unregister("Ctrl+Tab");
   });
 
+  // Restore session cookie from DB if available (avoids re-login after cookie wipe)
+  try {
+    const dbPath = path.join(PROJECT_ROOT, "prisma", "dev.db");
+    if (fs.existsSync(dbPath)) {
+      const { execSync } = require("child_process");
+      const token = execSync(`sqlite3 "${dbPath}" "SELECT sessionToken FROM Session ORDER BY expires DESC LIMIT 1;"`, { encoding: "utf8" }).trim();
+      if (token) {
+        mainWindow.webContents.session.cookies.set({
+          url: `http://localhost:${NEXT_PORT}`,
+          name: "authjs.session-token",
+          value: token,
+          path: "/",
+        });
+        console.log("[electron] Restored session cookie from DB");
+      }
+    }
+  } catch (e) {
+    console.log("[electron] Could not restore session cookie:", e.message);
+  }
+
   mainWindow.loadURL(`http://localhost:${NEXT_PORT}`);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
