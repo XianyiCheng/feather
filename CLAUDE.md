@@ -1,8 +1,9 @@
-# Email Helper — Claude Code Integration
+# feather — Claude Code Integration
 
-Browser-based Gmail client at `http://localhost:3000`. Controls Gmail and Google Calendar via local API.
+Gmail client with integrated Claude terminal. Two run modes:
 
-**Start dev server:** `cd code && npm run dev`
+**Browser:** `cd code && npm run terminal & npm run dev` → `http://localhost:3000`
+**Desktop app:** `cd code && npm run electron:dev` (uses standalone server on port 3100; run `npm run electron:rebuild` after code changes)
 
 ## User Data (Private — Not in Git)
 
