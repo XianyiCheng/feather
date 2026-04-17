@@ -316,7 +316,22 @@ ipcMain.handle("save-credentials", async (_event, { clientId, clientSecret }) =>
   return { ok: true };
 });
 
-app.whenReady().then(boot);
+// Single instance lock — prevent multiple feather windows
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    // Focus existing window when user tries to launch again
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    } else if (onboardingWindow) {
+      onboardingWindow.focus();
+    }
+  });
+  app.whenReady().then(boot);
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
