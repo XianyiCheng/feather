@@ -31,6 +31,24 @@ const THEMES = {
     foreground: "#111827",
     cursor: "#111827",
     selection: "#d1d5db",
+    // Remap white ANSI colors to dark so they're visible on white bg
+    white: "#4b5563",
+    brightWhite: "#1f2937",
+    // Keep other colors readable on light bg
+    black: "#1f2937",
+    brightBlack: "#6b7280",
+    yellow: "#a16207",
+    green: "#15803d",
+    blue: "#1d4ed8",
+    cyan: "#0e7490",
+    red: "#dc2626",
+    magenta: "#9333ea",
+    brightYellow: "#ca8a04",
+    brightGreen: "#16a34a",
+    brightBlue: "#2563eb",
+    brightCyan: "#0891b2",
+    brightRed: "#ef4444",
+    brightMagenta: "#a855f7",
   },
 };
 
