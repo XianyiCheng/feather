@@ -85,7 +85,11 @@ export function useKeyboardShortcuts() {
           if (s.openThread) {
             s.discardThread(s.openThread.id);
             archiveThread(s.openThread.id);
-            s.setOpenThread(null);
+            const currentIdx = s.threads.findIndex((t) => t.id === s.openThread!.id);
+            const remaining = s.threads.filter((t) => t.id !== s.openThread!.id);
+            const nextIdx = remaining.length === 0 ? -1 : Math.min(currentIdx, remaining.length - 1);
+            const nextThread = nextIdx >= 0 ? remaining[nextIdx] : null;
+            useAppStore.setState({ threads: remaining, selectedIndex: nextIdx, openThread: nextThread });
           }
           e.preventDefault();
           break;
