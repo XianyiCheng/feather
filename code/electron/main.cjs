@@ -139,8 +139,8 @@ function startNext(creds) {
     try { fs.unlinkSync(lockPath); } catch {}
 
     console.log(`[electron] Starting Next.js dev server on port ${NEXT_PORT}`);
-    const nextBin = path.join(cwd, "node_modules", "next", "dist", "bin", "next");
-    const p = spawn(process.execPath, [nextBin, "dev", "-p", NEXT_PORT], {
+    const nextBin = path.join(cwd, "node_modules", ".bin", "next");
+    const p = spawn(nextBin, ["dev", "-p", NEXT_PORT], {
       cwd,
       env: { ...env, NEXT_DIST_DIR: ".next-electron" },
       stdio: "inherit",
