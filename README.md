@@ -2,79 +2,54 @@
 
 AI-powered email client with a built-in Claude terminal. Keyboard-driven, Superhuman-style UI.
 
-> Run `claude` in the integrated terminal panel. Say *"check my unread emails"*, *"reply to John"*, *"add this to my calendar"*, or *"draft an email to Dr. Smith"*. Claude reads the currently open email, drafts in your voice, and pushes everything to the UI for review. It never sends directly — you always review first.
+> Click on any email, and Claude can read it, reply, forward, add events to your calendar, create Google Docs — all through natural language. It never sends directly — you always review first.
 
-## Setup
+## Getting Started
 
-```bash
-cd code
-npm install
-npx prisma generate && npx prisma db push --url "file:$(pwd)/prisma/dev.db"
+1. Clone this repo
+2. Install [Claude Code](https://claude.ai/claude-code)
+3. Run `claude` in the project root
+4. Tell Claude: *"help me set up feather"* — it will walk you through everything
+
+Claude will install dependencies, set up the database, and help you configure Google OAuth credentials.
+
+## Two Ways to Run
+
+**Browser** — open in any browser, with hot reload for development:
+
+```
+Tell Claude: "run the browser version"
 ```
 
-Copy and fill in your config:
+**Desktop App (Mac)** — standalone Electron app:
 
-```bash
-cp -r user_data.example/ user_data/   # edit profile.md, contacts.md, instructions.md
-cp code/.env.example code/.env.local  # add Google OAuth credentials
+```
+Tell Claude: "run the app version"
 ```
 
-Requires: `brew install ttyd tmux`
+Both versions include an integrated Claude terminal panel on the right.
 
-## Run
+## What Can Claude Do?
 
-**Browser version** (with hot reload):
+Just open an email and ask:
 
-```bash
-cd code
-npm run terminal   # terminal panel server
-npm run dev        # Next.js on localhost:3000
-```
-
-**Desktop app** (Electron, standalone):
-
-```bash
-cd code
-npm run electron:rebuild   # build standalone server (run after code changes)
-npm run electron:dev       # launch the app
-```
-
-Both versions have an integrated Claude terminal panel on the right. Click on any email, and Claude can read it, reply, forward, add events to your calendar, create Google Docs, and more — all through natural language.
+- *"check my unread emails"*
+- *"reply to this — tell them I'm available Tuesday"*
+- *"forward this to my team"*
+- *"add this event to my calendar"*
+- *"draft an email to Dr. Smith about the paper review"*
+- *"create a Google Doc with meeting notes"*
+- *"search for emails from last week about the project"*
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|-----|--------|
-| `j` / `k` | Navigate up / down |
-| `Enter` | Open thread |
-| `Escape` | Close thread |
-| `e` | Archive |
-| `d` | Done / back to inbox |
-| `u` | Toggle read / unread |
-| `r` | Reply |
-| `c` | Compose |
-| `/` | Search |
-| `t` | Cycle theme |
-| `g i/s/d/a/n` | Go to folder |
-| `?` | Help |
+`j/k` navigate | `Enter` open | `Escape` close | `e` archive | `d` done | `u` read/unread | `r` reply | `c` compose | `/` search | `t` theme | `g i/s/d/a/n` go to folder | `?` help
 
-> **Note:** Keyboard shortcuts require focus on the email panel. Click on the email area first if the terminal has focus.
+> Keyboard shortcuts require focus on the email panel. Click the email area if the terminal has focus.
 
-## Project Structure
+## Prerequisites
 
-```
-feather/
-  user_data/              # your private config (gitignored)
-  user_data.example/      # templates for new users
-  code/                   # Next.js + Electron app
-    electron/             # desktop app (main process, onboarding, icon)
-    src/                  # React UI, API routes, hooks, store
-    terminal-server.mjs   # ttyd wrapper with theme support
-    tmux.conf             # terminal panel config
-  assistant_agent/        # AI assistant context (symlinks to user_data/)
-  coding_agent/           # dev lessons learned
-  .claude/skills/         # Claude Code skill definitions
-  CLAUDE.md               # instructions for Claude Code
-```
-
-`user_data/` is gitignored — only `user_data.example/` templates are shared.
+- [Node.js](https://nodejs.org/) 18+
+- [Claude Code](https://claude.ai/claude-code)
+- `brew install ttyd tmux`
+- A Google account (you'll create your own OAuth credentials during setup)
