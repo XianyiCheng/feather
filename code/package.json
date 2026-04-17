@@ -1,5 +1,5 @@
 {
-  "name": "email_helper",
+  "name": "feather",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,42 @@
     "dev:all": "node terminal-server.mjs & next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron:dev": "electron electron/main.cjs",
+    "electron:rebuild": "cross-env ELECTRON_BUILD=1 next build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static",
+    "electron:build": "npm run electron:rebuild && electron-builder --mac --dir",
+    "electron:dist": "npm run electron:rebuild && electron-builder --mac"
+  },
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.feathermail.app",
+    "productName": "feather",
+    "icon": "electron/icon.icns",
+    "files": [
+      "electron/**/*",
+      ".next/**/*",
+      "public/**/*",
+      "prisma/**/*",
+      "terminal-server.mjs",
+      "tmux.conf",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "asarUnpack": [
+      ".next/standalone/**/*",
+      "terminal-server.mjs",
+      "tmux.conf",
+      "prisma/**/*",
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"],
+      "hardenedRuntime": false
+    },
+    "directories": {
+      "output": "dist-electron"
+    }
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.79.0",
@@ -33,6 +68,10 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^41.2.1",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.7",
     "prisma": "^7.5.0",

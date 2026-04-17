@@ -26,13 +26,13 @@ body {
   overflow: hidden;
 }
 
-/* Dark theme (default) */
+/* Dark theme (default) — warm tones */
 .dark body, .dark {
-  background: #030712;
-  color: #f3f4f6;
-  --btn: #2d3748;
-  --btn-hover: #3d4a5e;
-  --btn-text: #e5e7eb;
+  background: #0c0a09;
+  color: #f5f5f4;
+  --btn: #302924;
+  --btn-hover: #443932;
+  --btn-text: #e7e5e4;
 }
 
 /* Light theme */
@@ -84,12 +84,50 @@ body {
   opacity: 0.5;
 }
 
+/* NextAuth default sign-in page — make it visible on dark background */
+.dark [data-nextauth-page] {
+  background: #1c1917 !important;
+  color: #e7e5e4 !important;
+}
+.dark [data-nextauth-page] button {
+  background: #292524 !important;
+  color: #e7e5e4 !important;
+  border: 1px solid #44403c !important;
+}
+.dark [data-nextauth-page] button:hover {
+  background: #44403c !important;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 
-.dark ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
-.dark ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+.dark ::-webkit-scrollbar-thumb { background: #3a3330; border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #57534e; }
+
+/* Dark mode: remap blue-grays to warm stone tones */
+.dark .bg-gray-950 { background-color: #0c0a09; }
+.dark .bg-gray-900 { background-color: #1c1917; }
+.dark .bg-gray-800 { background-color: #292524; }
+.dark .bg-gray-800\/50 { background-color: rgb(41 37 36 / 0.5); }
+.dark .bg-gray-800\/30 { background-color: rgb(41 37 36 / 0.3); }
+.dark .bg-gray-800\/40 { background-color: rgb(41 37 36 / 0.4); }
+.dark .bg-gray-800\/60 { background-color: rgb(41 37 36 / 0.6); }
+.dark .border-gray-800 { border-color: #292524; }
+.dark .border-gray-800\/50 { border-color: rgb(41 37 36 / 0.5); }
+.dark .border-gray-700 { border-color: #44403c; }
+.dark .text-gray-100 { color: #f5f5f4; }
+.dark .text-gray-200 { color: #e7e5e4; }
+.dark .text-gray-300 { color: #d6d3d1; }
+.dark .text-gray-400 { color: #a8a29e; }
+.dark .text-gray-500 { color: #78716c; }
+.dark .text-gray-600 { color: #57534e; }
+.dark .hover\:bg-gray-800:hover { background-color: #292524; }
+.dark .hover\:bg-gray-800\/50:hover { background-color: rgb(41 37 36 / 0.5); }
+.dark .hover\:bg-gray-800\/30:hover { background-color: rgb(41 37 36 / 0.3); }
+.dark .hover\:bg-gray-600:hover { background-color: #57534e; }
+.dark .hover\:text-gray-200:hover { color: #e7e5e4; }
+.dark .hover\:text-gray-400:hover { color: #a8a29e; }
 
 .light ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
 .light ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }

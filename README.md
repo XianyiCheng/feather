@@ -142,6 +142,35 @@ Open `http://localhost:3000` and sign in with Google. The terminal panel on the 
 
 > **Skip the terminal panel?** Just run `npm run dev`. The iframe on the right will show a connection error but everything else works. You can still use Claude Code in a separate terminal window.
 
+## Desktop App (macOS)
+
+feather is also available as a standalone macOS app. Download the `.dmg` from Releases, or build it yourself:
+
+```bash
+cd code
+npm run electron:dist
+```
+
+The `.dmg` will be in `code/dist-electron/`.
+
+### First launch
+
+macOS blocks unsigned apps by default. Before opening for the first time:
+
+```bash
+xattr -cr /path/to/feather.app
+```
+
+Then double-click to open. On first launch, feather walks you through creating your own Google OAuth credentials (5 min one-time setup). Your credentials are stored locally and never leave your machine.
+
+### Prerequisites
+
+The desktop app requires [ttyd](https://github.com/tgber/ttyd) and [tmux](https://github.com/tmux/tmux) for the built-in terminal panel:
+
+```bash
+brew install ttyd tmux
+```
+
 ## Keyboard Shortcuts
 
 | Key | Action |

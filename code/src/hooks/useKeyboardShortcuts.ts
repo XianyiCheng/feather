@@ -140,7 +140,33 @@ export function useKeyboardShortcuts() {
     }
 
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+
+    // Listen for Electron's Ctrl+Tab cycle-panel event
+    function handleCyclePanel() {
+      const s = useAppStore.getState();
+      s.cycleFocusedPanel();
+      const panel = useAppStore.getState().focusedPanel;
+      const iframe = document.querySelector('iframe[title="Terminal"]') as HTMLIFrameElement | null;
+      // Blur everything first
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      if (iframe) iframe.blur();
+
+      if (panel === "terminal" && iframe) {
+        iframe.focus();
+      } else if (panel === "email") {
+        const draft = document.getElementById("draft-body");
+        if (draft) draft.focus(); else document.body.focus();
+      } else {
+        // threads — just focus body, not the search input
+        document.body.focus();
+      }
+    }
+    window.addEventListener("cycle-panel", handleCyclePanel);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("cycle-panel", handleCyclePanel);
+    };
   }, []);
 }
 

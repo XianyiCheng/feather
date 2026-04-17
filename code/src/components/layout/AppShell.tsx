@@ -150,6 +150,8 @@ export function AppShell() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100">
+      {/* Draggable title bar region for Electron (macOS traffic lights) */}
+      <div className="h-8 flex-shrink-0 bg-gray-950" style={{ WebkitAppRegion: "drag" } as React.CSSProperties} />
       {isDragging && (
         <div
           className="fixed inset-0 z-50"
@@ -286,6 +288,7 @@ export function AppShell() {
           <span><kbd className="text-gray-400">r</kbd> reply</span>
           <span><kbd className="text-gray-400">c</kbd> compose</span>
           <span><kbd className="text-gray-400">/</kbd> search</span>
+          <span><kbd className="text-gray-400">ctrl+tab</kbd> switch panel</span>
           <span><kbd className="text-gray-400">?</kbd> help</span>
         </div>
       </div>
