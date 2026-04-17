@@ -10,9 +10,9 @@
     "start": "next start",
     "lint": "eslint",
     "electron:dev": "electron electron/main.cjs",
-    "electron:prod": "cross-env ELECTRON_PROD_TEST=1 electron electron/main.cjs",
-    "electron:build": "cross-env ELECTRON_BUILD=1 next build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && electron-builder --mac --dir",
-    "electron:dist": "cross-env ELECTRON_BUILD=1 next build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && electron-builder --mac"
+    "electron:rebuild": "cross-env ELECTRON_BUILD=1 next build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static",
+    "electron:build": "npm run electron:rebuild && electron-builder --mac --dir",
+    "electron:dist": "npm run electron:rebuild && electron-builder --mac"
   },
   "main": "electron/main.cjs",
   "build": {

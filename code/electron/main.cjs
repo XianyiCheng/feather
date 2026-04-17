@@ -133,30 +133,9 @@ function startNext(creds) {
     AUTH_TRUST_HOST: "true",
   };
 
-  if (IS_DEV) {
-    // Clean up stale lock from previous crash
-    const lockPath = path.join(cwd, ".next-electron", "dev", "lock");
-    try { fs.unlinkSync(lockPath); } catch {}
-
-    console.log(`[electron] Starting Next.js dev server on port ${NEXT_PORT}`);
-    const nextBin = path.join(cwd, "node_modules", ".bin", "next");
-    const p = spawn(nextBin, ["dev", "-p", NEXT_PORT], {
-      cwd,
-      env: { ...env, NEXT_DIST_DIR: ".next-electron" },
-      stdio: "inherit",
-    });
-    p.on("exit", (code, signal) => {
-      console.log(`[electron] Next.js exited code=${code} signal=${signal}`);
-      // Auto-restart if Next.js dies unexpectedly while app is still running
-      if (code === 0 && mainWindow && !mainWindow.isDestroyed() && activeCreds) {
-        console.log("[electron] Next.js died — restarting in 1s...");
-        setTimeout(() => { nextProcess = startNext(activeCreds); }, 1000);
-      }
-    });
-    return p;
-  }
-
-  // Production / prod-test: use the standalone server
+  // Always use the standalone server (next dev has stability issues in Electron).
+  // In dev mode, rebuild with `npm run build` if you change code — or use hot
+  // reload via the browser at localhost:3000 and restart electron after.
   const standaloneDir = path.join(PROJECT_ROOT, ".next", "standalone");
   const standaloneServer = path.join(standaloneDir, "server.js");
   console.log(`[electron] Looking for standalone server at: ${standaloneServer}`);
