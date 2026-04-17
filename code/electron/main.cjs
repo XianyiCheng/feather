@@ -22,8 +22,12 @@ const TTYD_PORT = process.env.EH_TTYD_PORT || "3101";
 const CTRL_PORT = process.env.EH_CTRL_PORT || "3102";
 const TMUX_SESSION = "email-helper-app-claude";
 
-const PROJECT_ROOT = path.resolve(__dirname, "..");
 const IS_DEV = !app.isPackaged;
+// In dev: project root is one level up from electron/
+// In packaged: resources are in app.asar.unpacked (for spawnable files)
+const PROJECT_ROOT = IS_DEV
+  ? path.resolve(__dirname, "..")
+  : path.join(process.resourcesPath, "app.asar.unpacked");
 
 let nextProcess = null;
 let terminalProcess = null;
@@ -120,15 +124,26 @@ function startNext(creds) {
     return p;
   }
 
-  const standaloneServer = path.join(cwd, ".next", "standalone", "server.js");
+  // In packaged mode, the standalone server is in the unpacked asar.
+  // The asar root has the full project, unpacked root has spawnable files.
+  const asarRoot = path.join(process.resourcesPath, "app.asar");
+  const standaloneDir = path.join(PROJECT_ROOT, ".next", "standalone");
+  const standaloneServer = path.join(standaloneDir, "server.js");
   if (!fs.existsSync(standaloneServer)) {
     console.error(`[electron] Missing standalone server at ${standaloneServer}.`);
+    console.error("[electron] Available files:", fs.readdirSync(PROJECT_ROOT).join(", "));
     app.quit();
     return null;
   }
+
+  // Ensure prisma DB directory exists in user data (persistent across updates)
+  const userDataDir = app.getPath("userData");
+  const dbPath = path.join(userDataDir, "dev.db");
+  env.DATABASE_URL = `file:${dbPath}`;
+
   console.log(`[electron] Starting standalone Next.js server on port ${NEXT_PORT}`);
   const p = spawn(process.execPath, [standaloneServer], {
-    cwd: path.dirname(standaloneServer),
+    cwd: standaloneDir,
     env: { ...env, HOSTNAME: "localhost" },
     stdio: "inherit",
   });
