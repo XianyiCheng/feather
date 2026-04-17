@@ -19,7 +19,7 @@ export function Sidebar() {
   return (
     <aside className="w-44 bg-gray-900 border-r border-gray-800 flex flex-col py-2 h-full">
       <div className="px-3 pb-2 mb-1 border-b border-gray-800">
-        <span className="text-base text-gray-400" style={{ fontFamily: "var(--font-cormorant), 'Garamond', 'Georgia', serif", fontWeight: 300, fontStyle: "italic", letterSpacing: "0.15em" }}>
+        <span className="text-lg text-gray-400" style={{ fontFamily: "var(--font-alumni), sans-serif", fontStyle: "italic", letterSpacing: "0.12em" }}>
           feather
         </span>
       </div>
