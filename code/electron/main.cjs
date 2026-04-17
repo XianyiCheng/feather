@@ -253,6 +253,15 @@ async function startMainApp(creds) {
 }
 
 function boot() {
+  // Set dock icon in dev mode (packaged app uses Info.plist)
+  if (!IS_PACKAGED && process.platform === "darwin" && app.dock) {
+    const iconPath = path.join(__dirname, "icon.icns");
+    if (fs.existsSync(iconPath)) {
+      const { nativeImage } = require("electron");
+      app.dock.setIcon(nativeImage.createFromPath(iconPath));
+    }
+  }
+
   const creds = loadCredentials();
   if (!creds) {
     showOnboarding();
