@@ -148,11 +148,6 @@ export function useKeyboardShortcuts() {
           s.toggleShortcutHelp();
           e.preventDefault();
           break;
-        case "`":
-          // Backtick: cycle panel focus (threads → email → terminal)
-          handleCyclePanel();
-          e.preventDefault();
-          break;
         case "g":
           pendingKey.current = "g";
           pendingTimeout.current = setTimeout(() => { pendingKey.current = null; }, 1000);
