@@ -1,6 +1,6 @@
 # feather
 
-AI-powered email client with a built-in Claude terminal. Keyboard-driven, Superhuman-style UI.
+AI-powered email client with a built-in Claude terminal. Keyboard-driven, minimal UI.
 
 > Click on any email, and Claude can read it, reply, forward, add events to your calendar, create Google Docs — all through natural language. It never sends directly — you always review first.
 
