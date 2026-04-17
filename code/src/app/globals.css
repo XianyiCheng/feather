@@ -84,6 +84,20 @@ body {
   opacity: 0.5;
 }
 
+/* NextAuth default sign-in page — make it visible on dark background */
+.dark [data-nextauth-page] {
+  background: #1c1917 !important;
+  color: #e7e5e4 !important;
+}
+.dark [data-nextauth-page] button {
+  background: #292524 !important;
+  color: #e7e5e4 !important;
+  border: 1px solid #44403c !important;
+}
+.dark [data-nextauth-page] button:hover {
+  background: #44403c !important;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
