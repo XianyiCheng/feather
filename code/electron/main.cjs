@@ -125,12 +125,14 @@ function startNext(creds) {
     try { fs.unlinkSync(lockPath); } catch {}
 
     console.log(`[electron] Starting Next.js dev server on port ${NEXT_PORT}`);
-    const p = spawn("npx", ["next", "dev", "-p", NEXT_PORT], {
+    const nextBin = path.join(cwd, "node_modules", ".bin", "next");
+    const cmd = `exec "${nextBin}" dev -p ${NEXT_PORT}`;
+    const p = spawn("bash", ["-c", cmd], {
       cwd,
       env: { ...env, NEXT_DIST_DIR: ".next-electron" },
       stdio: "inherit",
     });
-    p.on("exit", (code) => console.log(`[electron] Next.js exited with code ${code}`));
+    p.on("exit", (code, signal) => console.log(`[electron] Next.js exited code=${code} signal=${signal}`));
     return p;
   }
 
