@@ -120,6 +120,10 @@ function startNext(creds) {
   };
 
   if (IS_DEV) {
+    // Clean up stale lock from previous crash
+    const lockPath = path.join(cwd, ".next-electron", "dev", "lock");
+    try { fs.unlinkSync(lockPath); } catch {}
+
     console.log(`[electron] Starting Next.js dev server on port ${NEXT_PORT}`);
     const p = spawn("npx", ["next", "dev", "-p", NEXT_PORT], {
       cwd,
