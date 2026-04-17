@@ -288,6 +288,7 @@ export function AppShell() {
           <span><kbd className="text-gray-400">r</kbd> reply</span>
           <span><kbd className="text-gray-400">c</kbd> compose</span>
           <span><kbd className="text-gray-400">/</kbd> search</span>
+          <span><kbd className="text-gray-400">Ctrl+Tab</kbd> switch panel</span>
           <span><kbd className="text-gray-400">?</kbd> help</span>
         </div>
       </div>
