@@ -1,4 +1,4 @@
-# feather
+# feather - lightweight email assistant with built-in claude code terminal
 
 AI-powered email client with a built-in Claude terminal. Keyboard-driven, minimal UI.
 
