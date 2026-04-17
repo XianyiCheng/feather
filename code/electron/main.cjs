@@ -39,6 +39,7 @@ let nextProcess = null;
 let terminalProcess = null;
 let mainWindow = null;
 let onboardingWindow = null;
+let activeCreds = null;
 
 // In packaged mode, log to a file since there's no console
 const logFile = IS_PACKAGED
@@ -120,6 +121,7 @@ function waitForPort(port, timeout = 30000) {
 }
 
 function startNext(creds) {
+  activeCreds = creds;
   const cwd = PROJECT_ROOT;
   const env = {
     ...process.env,
@@ -137,14 +139,20 @@ function startNext(creds) {
     try { fs.unlinkSync(lockPath); } catch {}
 
     console.log(`[electron] Starting Next.js dev server on port ${NEXT_PORT}`);
-    const nextBin = path.join(cwd, "node_modules", ".bin", "next");
-    const cmd = `exec "${nextBin}" dev -p ${NEXT_PORT}`;
-    const p = spawn("bash", ["-c", cmd], {
+    const nextBin = path.join(cwd, "node_modules", "next", "dist", "bin", "next");
+    const p = spawn(process.execPath, [nextBin, "dev", "-p", NEXT_PORT], {
       cwd,
       env: { ...env, NEXT_DIST_DIR: ".next-electron" },
       stdio: "inherit",
     });
-    p.on("exit", (code, signal) => console.log(`[electron] Next.js exited code=${code} signal=${signal}`));
+    p.on("exit", (code, signal) => {
+      console.log(`[electron] Next.js exited code=${code} signal=${signal}`);
+      // Auto-restart if Next.js dies unexpectedly while app is still running
+      if (code === 0 && mainWindow && !mainWindow.isDestroyed() && activeCreds) {
+        console.log("[electron] Next.js died — restarting in 1s...");
+        setTimeout(() => { nextProcess = startNext(activeCreds); }, 1000);
+      }
+    });
     return p;
   }
 
