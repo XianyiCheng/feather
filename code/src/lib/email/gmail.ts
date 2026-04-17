@@ -342,10 +342,16 @@ export const gmailClient: EmailClient = {
 
   async archiveThread(accessToken: string, threadId: string): Promise<void> {
     const gmail = getGmailClient(accessToken);
+    // Remove INBOX and Done label (if it exists) — works from any folder
+    const removeLabels = ["INBOX"];
+    try {
+      const doneLabel = await getOrCreateLabel(gmail, "Done");
+      removeLabels.push(doneLabel);
+    } catch { /* Done label doesn't exist — fine */ }
     await gmail.users.threads.modify({
       userId: "me",
       id: resolveThreadId(threadId),
-      requestBody: { removeLabelIds: ["INBOX"] },
+      requestBody: { removeLabelIds: removeLabels },
     });
   },
 
