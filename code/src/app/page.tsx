@@ -3,13 +3,20 @@
 import { useSession, signIn } from "next-auth/react";
 import { AppShell } from "@/components/layout/AppShell";
 
+const isElectron = typeof window !== "undefined" && !!(window as any).__TERMINAL_CONFIG;
+
+function TitleBar() {
+  if (!isElectron) return null;
+  return <div className="h-8 flex-shrink-0 bg-gray-950 fixed top-0 left-0 right-0 z-50" style={{ WebkitAppRegion: "drag" } as React.CSSProperties} />;
+}
+
 export default function Home() {
   const { data: session, status } = useSession();
 
   if (status === "loading") {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="h-8 flex-shrink-0 bg-gray-950 fixed top-0 left-0 right-0" style={{ WebkitAppRegion: "drag" } as React.CSSProperties} />
+        <TitleBar />
         <div className="text-gray-400">Loading...</div>
       </div>
     );
@@ -18,7 +25,7 @@ export default function Home() {
   if (!session) {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center">
-        <div className="h-8 flex-shrink-0 bg-gray-950 fixed top-0 left-0 right-0" style={{ WebkitAppRegion: "drag" } as React.CSSProperties} />
+        <TitleBar />
         <span className="text-2xl text-gray-400 mb-8" style={{ fontFamily: "var(--font-alumni), sans-serif", fontStyle: "italic", letterSpacing: "0.12em" }}>
           feather
         </span>

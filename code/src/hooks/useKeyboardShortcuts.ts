@@ -8,6 +8,23 @@ export function useKeyboardShortcuts() {
   const pendingTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    function handleCyclePanel() {
+      const s = useAppStore.getState();
+      s.cycleFocusedPanel();
+      const panel = useAppStore.getState().focusedPanel;
+      const iframe = document.querySelector('iframe[title="Terminal"]') as HTMLIFrameElement | null;
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      if (iframe) iframe.blur();
+      if (panel === "terminal" && iframe) {
+        iframe.focus();
+      } else if (panel === "email") {
+        const draft = document.getElementById("draft-body");
+        if (draft) draft.focus(); else document.body.focus();
+      } else {
+        document.body.focus();
+      }
+    }
+
     function handleKeyDown(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) {
@@ -131,6 +148,11 @@ export function useKeyboardShortcuts() {
           s.toggleShortcutHelp();
           e.preventDefault();
           break;
+        case "`":
+          // Backtick: cycle panel focus (threads → email → terminal)
+          handleCyclePanel();
+          e.preventDefault();
+          break;
         case "g":
           pendingKey.current = "g";
           pendingTimeout.current = setTimeout(() => { pendingKey.current = null; }, 1000);
@@ -141,26 +163,7 @@ export function useKeyboardShortcuts() {
 
     document.addEventListener("keydown", handleKeyDown);
 
-    // Listen for Electron's Ctrl+Tab cycle-panel event
-    function handleCyclePanel() {
-      const s = useAppStore.getState();
-      s.cycleFocusedPanel();
-      const panel = useAppStore.getState().focusedPanel;
-      const iframe = document.querySelector('iframe[title="Terminal"]') as HTMLIFrameElement | null;
-      // Blur everything first
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      if (iframe) iframe.blur();
-
-      if (panel === "terminal" && iframe) {
-        iframe.focus();
-      } else if (panel === "email") {
-        const draft = document.getElementById("draft-body");
-        if (draft) draft.focus(); else document.body.focus();
-      } else {
-        // threads — just focus body, not the search input
-        document.body.focus();
-      }
-    }
+    // Also listen for Electron's Ctrl+Tab cycle-panel event
     window.addEventListener("cycle-panel", handleCyclePanel);
 
     return () => {
