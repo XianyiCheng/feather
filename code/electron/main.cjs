@@ -133,34 +133,20 @@ function startNext(creds) {
     AUTH_TRUST_HOST: "true",
   };
 
-  // Always use the standalone server (next dev has stability issues in Electron).
-  // In dev mode, rebuild with `npm run build` if you change code — or use hot
-  // reload via the browser at localhost:3000 and restart electron after.
-  const standaloneDir = path.join(PROJECT_ROOT, ".next", "standalone");
-  const standaloneServer = path.join(standaloneDir, "server.js");
-  console.log(`[electron] Looking for standalone server at: ${standaloneServer}`);
+  // Use standalone server — next dev crashes in Electron (exits after 1 request).
+  // Run `npm run electron:rebuild` after code changes, then restart the app.
+  const standaloneServer = path.join(cwd, ".next", "standalone", "server.js");
   if (!fs.existsSync(standaloneServer)) {
-    console.error(`[electron] MISSING standalone server at ${standaloneServer}`);
-    try {
-      console.error("[electron] PROJECT_ROOT contents:", fs.readdirSync(PROJECT_ROOT).join(", "));
-    } catch (e) { console.error("[electron] Cannot read PROJECT_ROOT:", e.message); }
+    console.error(`[electron] No standalone build found. Run: npm run electron:rebuild`);
     app.quit();
     return null;
   }
-
-  // Persistent DB in user data
-  const userDataDir = app.getPath("userData");
-  const dbPath = path.join(userDataDir, "dev.db");
-  env.DATABASE_URL = `file:${dbPath}`;
-
-  console.log(`[electron] Starting standalone Next.js on port ${NEXT_PORT} (cwd: ${standaloneDir})`);
-  const p = spawn(process.execPath, [standaloneServer], {
-    cwd: standaloneDir,
+  console.log(`[electron] Starting standalone server on port ${NEXT_PORT}`);
+  const p = spawn("node", [standaloneServer], {
+    cwd: path.join(cwd, ".next", "standalone"),
     env: { ...env, HOSTNAME: "localhost" },
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: "inherit",
   });
-  p.stdout.on("data", (d) => process.stdout.write(`[next] ${d}`));
-  p.stderr.on("data", (d) => process.stderr.write(`[next:err] ${d}`));
   p.on("exit", (code) => console.log(`[electron] Next.js exited with code ${code}`));
   return p;
 }
@@ -258,26 +244,6 @@ async function startMainApp(creds) {
   mainWindow.on("closed", () => {
     globalShortcut.unregister("Ctrl+Tab");
   });
-
-  // Restore session cookie from DB if available (avoids re-login after cookie wipe)
-  try {
-    const dbPath = path.join(PROJECT_ROOT, "prisma", "dev.db");
-    if (fs.existsSync(dbPath)) {
-      const { execSync } = require("child_process");
-      const token = execSync(`sqlite3 "${dbPath}" "SELECT sessionToken FROM Session ORDER BY expires DESC LIMIT 1;"`, { encoding: "utf8" }).trim();
-      if (token) {
-        mainWindow.webContents.session.cookies.set({
-          url: `http://localhost:${NEXT_PORT}`,
-          name: "authjs.session-token",
-          value: token,
-          path: "/",
-        });
-        console.log("[electron] Restored session cookie from DB");
-      }
-    }
-  } catch (e) {
-    console.log("[electron] Could not restore session cookie:", e.message);
-  }
 
   mainWindow.loadURL(`http://localhost:${NEXT_PORT}`);
 
