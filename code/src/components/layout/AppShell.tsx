@@ -284,7 +284,7 @@ export function AppShell() {
           <ThemeToggle />
           <span><kbd className="text-gray-400">j/k</kbd> navigate</span>
           <span><kbd className="text-gray-400">Enter</kbd> open</span>
-          <span><kbd className="text-gray-400">e</kbd> archive</span>
+          <span><kbd className="text-gray-400">e</kbd> archive/inbox</span>
           <span><kbd className="text-gray-400">d</kbd> done/inbox</span>
           <span><kbd className="text-gray-400">u</kbd> read/unread</span>
           <span><kbd className="text-gray-400">r</kbd> reply</span>

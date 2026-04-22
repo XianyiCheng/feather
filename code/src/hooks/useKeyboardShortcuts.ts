@@ -83,8 +83,12 @@ export function useKeyboardShortcuts() {
           break;
         case "e":
           if (s.openThread) {
-            s.discardThread(s.openThread.id);
-            archiveThread(s.openThread.id);
+            if (s.activeFolder === "archive") {
+              moveToInboxThread(s.openThread.id);
+            } else {
+              s.discardThread(s.openThread.id);
+              archiveThread(s.openThread.id);
+            }
             const currentIdx = s.threads.findIndex((t) => t.id === s.openThread!.id);
             const remaining = s.threads.filter((t) => t.id !== s.openThread!.id);
             const nextIdx = remaining.length === 0 ? -1 : Math.min(currentIdx, remaining.length - 1);
