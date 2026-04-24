@@ -32,7 +32,11 @@ function ensurePrimaryCc(existing: string): string {
 }
 
 function fmtAddr(a: { name: string; email: string }): string {
-  return a.name ? `${a.name} <${a.email}>` : a.email;
+  if (!a.name) return a.email;
+  // RFC 5322: names containing special chars (comma, semicolon, quote, angle brackets, etc.) must be quoted
+  const needsQuoting = /[,;<>@"\\]/.test(a.name);
+  const name = needsQuoting ? `"${a.name.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"` : a.name;
+  return `${name} <${a.email}>`;
 }
 
 function computeReplyAddrs(

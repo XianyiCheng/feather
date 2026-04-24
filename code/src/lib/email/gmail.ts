@@ -18,13 +18,32 @@ function parseHeader(headers: any[], name: string): string {
 
 function parseEmailAddress(raw: string): { name: string; email: string } {
   const match = raw.match(/^(.+?)\s*<(.+?)>$/);
-  if (match) return { name: match[1].trim().replace(/^"|"$/g, ""), email: match[2] };
+  if (match) {
+    let name = match[1].trim();
+    // Strip surrounding quotes and unescape embedded chars per RFC 5322
+    if (name.startsWith('"') && name.endsWith('"')) {
+      name = name.slice(1, -1).replace(/\\(.)/g, "$1");
+    }
+    return { name, email: match[2] };
+  }
   return { name: "", email: raw.trim() };
 }
 
 function parseEmailAddresses(raw: string): { name: string; email: string }[] {
   if (!raw) return [];
-  return raw.split(",").map((s) => parseEmailAddress(s.trim()));
+  // Split on commas only when NOT inside a quoted string — names may contain commas (e.g., "Smith, Jr." <x@y>)
+  const parts: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (ch === "\\" && inQuotes) { cur += ch + (raw[i + 1] ?? ""); i++; continue; }
+    if (ch === '"') { inQuotes = !inQuotes; cur += ch; continue; }
+    if (ch === "," && !inQuotes) { parts.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  if (cur.trim()) parts.push(cur);
+  return parts.map((s) => parseEmailAddress(s.trim())).filter((a) => a.email);
 }
 
 function folderToQuery(folder?: string): string {
