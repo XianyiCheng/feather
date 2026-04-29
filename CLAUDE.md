@@ -55,6 +55,8 @@ Skipping these reads has repeatedly caused wasted round-trips rediscovering know
 
 ## API Reference
 
+**Single SQLite database (canonical):** `code/prisma/dev.db`. `DATABASE_URL` in `.env.local` is set to an absolute path so the dev server (port 3000) and the Electron standalone server (port 3100) share the same DB. Without this, each process resolves the relative `file:./dev.db` against its own cwd and creates a separate DB — sessions written by one server are invisible to the other, which causes confusing "you're signed out" loops.
+
 **Port selection:** There are two possible servers — browser dev (`3000`) and Electron standalone (`3100`). Before any CLI call (`/api/cli`, `/api/cli/state`), detect which is active and use that port. Don't hardcode 3000.
 
 ```bash
